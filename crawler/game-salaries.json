@@ -1,0 +1,199 @@
+[
+    {
+        "year": 2020,
+        "week": 4,
+        "homeTeam": "DAL",
+        "awayTeam": "CLE",
+        "players":[
+            {
+                "name": "Dak Prescott",
+                "team": "DAL",
+                "salary": 12600
+            },
+            {
+                "name": "Ezekiel Elliott",
+                "team": "DAL",
+                "salary": 10200
+            },
+            {
+                "name": "Baker Mayfield",
+                "team": "CLE",
+                "salary": 9800
+            },
+            {
+                "name": "Nick Chubb",
+                "team": "CLE",
+                "salary": 8600
+            },
+            {
+                "name": "Amari Cooper",
+                "team": "DAL",
+                "salary": 8000
+            },
+            {
+                "name": "O. Beckham Jr.",
+                "team": "CLE",
+                "salary": 7800
+            },
+            {
+                "name": "Michael Gallup",
+                "team": "DAL",
+                "salary": 7600
+            },
+            {
+                "name": "Kareem Hunt",
+                "team": "CLE",
+                "salary": 7000
+            },
+            {
+                "name": "CeeDee Lamb",
+                "team": "DAL",
+                "salary": 6600
+            },
+            {
+                "name": "Jarvis Landry",
+                "team": "CLE",
+                "salary": 6200
+            },
+            {
+                "name": "Ben DiNucci",
+                "team": "DAL",
+                "salary": 6000
+            },
+            {
+                "name": "Case Keenum",
+                "team": "CLE",
+                "salary": 6000
+            },
+            {
+                "name": "Andy Dalton",
+                "team": "DAL",
+                "salary": 6000
+            },
+            {
+                "name": "Dalton Schultz",
+                "team": "DAL",
+                "salary": 5600
+            },
+            {
+                "name": "Austin Hooper",
+                "team": "CLE",
+                "salary": 4800
+            },
+            {
+                "name": "DAL-DST",
+                "team": "DAL",
+                "salary": 4400
+            },
+            {
+                "name": "Greg Zuerlein",
+                "team": "DAL",
+                "salary": 4000
+            },
+            {
+                "name": "Cody Parkey",
+                "team": "CLE",
+                "salary": 3800
+            },
+            {
+                "name": "CLE-DST",
+                "team": "CLE",
+                "salary": 3600
+            },
+            {
+                "name": "Cedrick Wilson",
+                "team": "DAL",
+                "salary": 3200
+            },
+            {
+                "name": "Tony Pollard",
+                "team": "DAL",
+                "salary": 2000
+            },
+            {
+                "name": "Blake Bell",
+                "team": "DAL",
+                "salary": 1600
+            },
+            {
+                "name": "Harrison Bryant",
+                "team": "CLE",
+                "salary": 1200
+            },
+            {
+                "name": "KhaDarel Hodge",
+                "team": "CLE",
+                "salary": 800
+            },
+            {
+                "name": "Noah Brown",
+                "team": "DAL",
+                "salary": 600
+            },
+            {
+                "name": "David Njoku",
+                "team": "CLE",
+                "salary": 200,
+                "injured": true
+            },
+            {
+                "name": "Ventell Bryant",
+                "team": "DAL",
+                "salary": 200,
+                "injured": true
+            },
+            {
+                "name": "Rashard Higgins",
+                "team": "CLE",
+                "salary": 200
+            },
+            {
+                "name": "Blake Jarwin",
+                "team": "DAL",
+                "salary": 200,
+                "injured": true
+            },
+            {
+                "name": "JoJo Natson",
+                "team": "CLE",
+                "salary": 200,
+                "injured": true
+            },
+            {
+                "name": "Malik Turner",
+                "team": "DAL",
+                "salary": 200
+            },
+            {
+                "name": "Sean McKeon",
+                "team": "DAL",
+                "salary": 200
+            },
+            {
+                "name": "Stephen Carlson",
+                "team": "CLE",
+                "salary": 200
+            },
+            {
+                "name": "D. Peoples-Jones",
+                "team": "CLE",
+                "salary": 200
+            },
+            {
+                "name": "Andy Janovich",
+                "team": "CLE",
+                "salary": 200
+            },
+            {
+                "name": "D'Ernest Johnson",
+                "team": "CLE",
+                "salary": 200
+            },
+            {
+                "name": "Rico Dowdle",
+                "team": "DAL",
+                "salary": 200
+            }
+        ]
+    }
+]

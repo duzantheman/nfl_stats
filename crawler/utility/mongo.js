@@ -85,8 +85,8 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                 .find({ $and: [{ "week": week }, { "year": year }] }).toArray();
 
             // -- grab relevant games from results
-            result.forEach(week => {
-                week.games.filter(game => {
+            result.forEach(gameWeek => {
+                gameWeek.games.filter(game => {
                     return game.homeTeam === teamA || game.homeTeam === teamB ||
                         game.awayTeam === teamA || game.awayTeam === teamB;
                 }).forEach(game => {
@@ -108,7 +108,8 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                                 totalReceptions: parseInt(player.rec || 0),
                                 totalInterceptions: parseInt(player.pass_int || 0),
                                 totalFumblesLost: parseInt(player.fumbles_lost || 0),
-                                weeksPlayed: 1
+                                weeksPlayed: 1,
+                                weeks: [`${year} - Week ${week}`]
                             }
                         } else {
                             avgData[player.player].totalPassingTD += parseInt(player.pass_td || 0);
@@ -121,6 +122,7 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                             avgData[player.player].totalInterceptions += parseInt(player.pass_int || 0);
                             avgData[player.player].totalFumblesLost += parseInt(player.fumbles_lost || 0);
                             avgData[player.player].weeksPlayed += 1;
+                            avgData[player.player]["weeks"].push(`${year} - Week ${week}`);
                         }
                     });
 
@@ -130,12 +132,14 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                             avgData[player.player] = {
                                 team: player.team,
                                 totalKickReturnTD: parseInt(player.kick_ret_td || 0) + parseInt(player.punt_ret_td || 0),
-                                weeksPlayed: 1
+                                weeksPlayed: 1,
+                                weeks: [`${year} - Week ${week}`]
                             }
                         } else {
                             avgData[player.player].totalKickReturnTD = (avgData[player.player].totalKickReturnTD || 0) +
                                 parseInt(player.kick_ret_td || 0) + parseInt(player.punt_ret_td || 0);
                             avgData[player.player].weeksPlayed += 1;
+                            avgData[player.player]["weeks"].push(`${year} - Week ${week}`);
                         }
                     });
 

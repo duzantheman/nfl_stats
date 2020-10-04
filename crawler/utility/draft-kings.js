@@ -68,16 +68,14 @@ const getDraftKingsValue = (averageData, numberOfWeeks) => {
         DKPlayers.push({
             name: player,
             team: averageData[player]["team"],
-            draftKingsPoints: totalPoints
+            draftKingsPoints: totalPoints,
+
+            // -- DEBUG - temporary to see stats associated with player
+            properties: { ...averageData[player] }
         });
     });
 
-    // -- sort averageData array
-    DKPlayers.sort(function (a, b) {
-        return a.draftKingsPoints > b.draftKingsPoints ? -1 : 1;
-    });
-
-    console.log(JSON.stringify(DKPlayers));
+    return DKPlayers;
 };
 
 const getDraftKingsValue_newer = (averageData, numberOfWeeks) => {
