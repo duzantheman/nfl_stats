@@ -4,7 +4,7 @@ const DK_TEAM_ABBRV_CONV = {
     "PIT": "Pittsburg Steelers",
     "CHI": "CHI",
     "CLE": "Cleveland Browns",
-    "CAR": "Carolina Panthers",
+    "CAR": "CAR",
     "SF": "SFO",
     "NOR": "New Orleans Saints",
     "MIN": "Minnesota Vikings",
@@ -18,7 +18,7 @@ const DK_TEAM_ABBRV_CONV = {
     "NE": "NWE",
     "GB": "GNB",
     "LV": "LVR",
-    "CIN": "Cincinnati Bengals",
+    "CIN": "CIN",
     "NYG": "NYG",
     "DEN": "Denver Broncos",
     "TB": "TAM",
@@ -32,7 +32,7 @@ const DK_TEAM_ABBRV_CONV = {
     "ARI": "Arizone Cardinals",
     "DAL": "Dallas Cowboys",
     "KC": "KAN",
-    "BAL": "Baltimore Ravens"
+    "BAL": "BAL"
 };
 
 const getDraftKingsValue = (averageData, numberOfWeeks) => {
@@ -103,11 +103,18 @@ const getPlayerSalaries = async (teamA, teamB) => {
             console.log("Error occurred while fetching data");
         }
 
+        let homeTeam, awayTeam;
+
+        // -- filter by NFL captains games
         const playableGames = response.data.draftGroups.filter(draftGroup => draftGroup.contestType.contestTypeId === 96);
         const game = playableGames.find(draftGroup => {
             const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]);
-            console.log(teamAbbrvs);
-            return teamAbbrvs.includes(teamA) && teamAbbrvs.includes(teamB);
+            // console.log(teamAbbrvs);
+            if (teamAbbrvs.includes(teamA) && teamAbbrvs.includes(teamB)) {
+                homeTeam = teamAbbrvs[0];
+                awayTeam = teamAbbrvs[1];
+                return true;
+            }
         });
         if (!game) {
             console.log(`Couldnt find game for ${teamA} and ${teamB}.`);
@@ -159,13 +166,41 @@ const getPlayerSalaries = async (teamA, teamB) => {
             }
         });
 
-        return dkPlayersList;
+        return [dkPlayersList, homeTeam, awayTeam];
     }
     catch (ex) {
         console.log("Error occurred while fetching data");
         console.log(ex);
     }
 };
+
+const getCurrentGames = async () => {
+    // -- retrieve current NFL captains games
+    let page = "https://api.draftkings.com/draftgroups/v1/";
+    console.log("Visiting page " + page);
+    try {
+        const response = await axios.get(page);
+        if (response.status !== 200) {
+            console.log("Error occurred while fetching data");
+        }
+
+        const teamAbbrvs = [];
+
+        // -- filter by NFL captains games
+        const playableGames = response.data.draftGroups.filter(draftGroup => draftGroup.contestType.contestTypeId === 96);
+        playableGames.forEach(draftGroup => {
+            teamAbbrvs.push(draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]));
+            // const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]);
+            // console.log(teamAbbrvs);
+        });
+
+        return teamAbbrvs;
+    }
+    catch (ex) {
+        console.log("Error occurred while retrieving current games.");
+        console.log(ex);
+    }
+}
 
 const getDraftKingsValue_newer = (averageData, numberOfWeeks) => {
     const DKPlayers = [];
@@ -319,3 +354,4 @@ const getDraftKingsValue_old = (averageData) => {
 
 module.exports.getDraftKingsValue = getDraftKingsValue;
 module.exports.getPlayerSalaries = getPlayerSalaries;
+module.exports.getCurrentGames = getCurrentGames;

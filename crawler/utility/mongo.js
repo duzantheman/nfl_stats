@@ -4,35 +4,35 @@ const user = "admin";
 const pw = "q5xEsVlZsOwwimDs";
 const clusterName = "cluster0.kt19q.mongodb.net";
 const dbName = "nfl_data";
-const connectDB = async () => {
-    const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
-    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-    // client.connect(err => {
-    //     const collection = client.db("test").collection("devices");
-    //     // perform actions on the collection object
-    //     client.close();
-    // });
+// const connectDB = async () => {
+//     const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
+//     const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+//     // client.connect(err => {
+//     //     const collection = client.db("test").collection("devices");
+//     //     // perform actions on the collection object
+//     //     client.close();
+//     // });
 
-    try {
-        // Connect to the MongoDB cluster
-        await client.connect();
+//     try {
+//         // Connect to the MongoDB cluster
+//         await client.connect();
 
-        // Make the appropriate DB calls
-        await listDatabases(client);
+//         // Make the appropriate DB calls
+//         await listDatabases(client);
 
-    } catch (e) {
-        console.error(e);
-    } finally {
-        await client.close();
-    }
-}
+//     } catch (e) {
+//         console.error(e);
+//     } finally {
+//         await client.close();
+//     }
+// }
 
-const listDatabases = async (client) => {
-    databasesList = await client.db().admin().listDatabases();
+// const listDatabases = async (client) => {
+//     databasesList = await client.db().admin().listDatabases();
 
-    console.log("Databases:");
-    databasesList.databases.forEach(db => console.log(` - ${db.name}`));
-};
+//     console.log("Databases:");
+//     databasesList.databases.forEach(db => console.log(` - ${db.name}`));
+// };
 
 const writeStats = async (stats) => {
     const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
@@ -59,6 +59,7 @@ const writeStats = async (stats) => {
     }
 };
 
+// -- this is where the prediction algorithm is that we need to work on
 const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
     const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
@@ -235,5 +236,41 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     return avgData;
 }
 
+const storePlayerSalaries = async (playerSalaries, week, homeTeam, awayTeam) => {
+    const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
+    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+
+    let year = new Date().getFullYear();
+
+    try {
+        await client.connect();
+
+        const result = await client.db(dbName).collection("game_salaries").updateOne(
+            {                   // Query parameter
+                $and: [
+                    { "week": week },
+                    { "year": year },
+                    { "homeTeam": homeTeam },
+                    { "awayTeam": awayTeam }
+                ]
+            },
+            {                   // Update document
+                $setOnInsert: { week, year, homeTeam, awayTeam },
+                $set: { playerSalaries },
+            },
+            { upsert: true }    // Options
+        );
+
+        console.log(`${result.upsertedCount} new listing(s) created.`);
+        console.log(`${result.modifiedCount} listing(s) modified.`);
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+}
+
 module.exports.writeStats = writeStats;
 module.exports.getAverageData = getAverageData;
+module.exports.storePlayerSalaries = storePlayerSalaries;

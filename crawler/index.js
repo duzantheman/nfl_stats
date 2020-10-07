@@ -2,8 +2,8 @@ const { performance } = require('perf_hooks');
 
 // const { TEAM_ABBRV, getStats } = require("./utility/espn");
 const { TEAM_ABBRV, getStats } = require("./utility/pro-football-ref");
-const { writeStats, getAverageData } = require("./utility/mongo");
-const { getDraftKingsValue, getPlayerSalaries } = require("./utility/draft-kings");
+const { writeStats, getAverageData, storePlayerSalaries } = require("./utility/mongo");
+const { getDraftKingsValue, getPlayerSalaries, getCurrentGames } = require("./utility/draft-kings");
 
 const testSalaries = require("./game-salaries.json");
 
@@ -24,43 +24,12 @@ const updateStats = async () => {
     await writeStats(stats);
 }
 
-const run = async () => {
-    const args = process.argv.slice(2);
-    // console.log('args: ', args);
-    switch (args[0]) {
-        case 'update-stats':    // `node index.js update-stats`
-            console.log("Updating stored stats...");
-
-            updateStats();
-            break;
-        case 'generate-team':   // `node index.js generate-team {weekNumber} {teamA} {teamB}` (assuming current year)
-            const [weekNumber, teamA, teamB] = args.slice(1);
-            const numberOfWeeks = 3;
-
-            generateTeam(parseInt(weekNumber), numberOfWeeks, teamA.toUpperCase(), teamB.toUpperCase());
-            break;
-        case 'team-abbrv':    // `node index.js team-abbrv`
-            console.log("Team abbreviations...");
-
-            orderedAbbrv = {};
-            Object.keys(TEAM_ABBRV).sort().forEach(function (key) {
-                orderedAbbrv[key] = TEAM_ABBRV[key];
-            });
-
-            Object.keys(orderedAbbrv).forEach(key => {
-                console.log(`\t${key}: ${orderedAbbrv[key]}`);
-            });
-            break;
-        default:
-            console.log('Invalid arg');
-    }
-}
-
-const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
+const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData = false) => {
 
     console.log(`Generating team for week ${weekNumber} - ${teamA} vs ${teamB}...`);
 
     // -- retrieve data and build out weekly averages
+    // *** this is where the prediction algorithm is that we need to work on ***
     const avgData = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
 
     // -- DEBUG
@@ -69,19 +38,20 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     // -- calculate DraftKings points based on rules
     const DKPlayers = getDraftKingsValue(avgData, numberOfWeeks);
 
-    // -- TESTING -- get player salaries from file used for testing
-    // const playerSalaries = testSalaries.find(game => {
-    //     return game.year === new Date().getFullYear() && game.week === weekNumber &&
-    //         (
-    //             (game.homeTeam === teamA && game.awayTeam === teamB) ||
-    //             (game.homeTeam === teamB && game.awayTeam === teamA)
-    //         )
-    // }).playerList;
+    let playerSalaries = [];
+    let homeTeam, awayTeam;
+    if (useTestData) {
+        // -- retrieve stored player salaries from mongo
+    } else {
+        // -- retrieve stored player salaries from draft-kings
+        [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(teamA, teamB);
 
-    // -- ACTUAL -- get player salaries from DraftKings API
-    const playerSalaries = await getPlayerSalaries(teamA, teamB);
+        // -- store data in mongo
+        storePlayerSalaries(playerSalaries, weekNumber, homeTeam, awayTeam);
+    }
 
     // -- DEBUG
+    console.log();
     console.log(JSON.stringify(playerSalaries));
 
     console.log();
@@ -260,6 +230,83 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
 
     console.log();
     console.log(JSON.stringify(filteredPossibleTeams.slice(0, 101)));
+};
+
+const storeSalaryData = async (week) => {
+    // -- get current DraftKings games
+    const weeklyTeams = await getCurrentGames();
+
+    for (const gameTeams of weeklyTeams) {
+        // -- retrieve DraftKings salary lineups
+        [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(gameTeams[0], gameTeams[1]);
+
+        // -- store data in mongo
+        storePlayerSalaries(playerSalaries, week, homeTeam, awayTeam);
+    }
+
+    // weeklyTeams.forEach(gameTeams => {
+    //     // -- retrieve DraftKings salary lineups
+    //     [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(gameTeams[0], gameTeams[1]);
+
+    //     // -- store data in mongo
+    //     storePlayerSalaries(playerSalaries, week, homeTeam, awayTeam);
+    // });
+};
+
+const run = async () => {
+    const args = process.argv.slice(2);
+    // console.log('args: ', args);
+    switch (args[0]) {
+        case '--update-stats':    // `node index.js --update-stats`
+            console.log("Updating stored stats...");
+
+            updateStats();
+            break;
+        case '--generate-team':   // `node index.js --generate-team {weekNumber} {teamA} {teamB} [{useTestData}]` (assuming current year)
+            console.log("Generating DraftKings teams...");
+
+            const [weekNumber, teamA, teamB, useTestDataStr] = args.slice(1);
+            const numberOfWeeks = 3;
+            const useTestData = useTestDataStr === "true";
+
+            generateTeam(parseInt(weekNumber), numberOfWeeks, teamA.toUpperCase(), teamB.toUpperCase(), useTestData);
+            break;
+        case '--team-abbrv':    // `node index.js --team-abbrv`
+            console.log("Team abbreviations...");
+
+            orderedAbbrv = {};
+            Object.keys(TEAM_ABBRV).sort().forEach(function (key) {
+                orderedAbbrv[key] = TEAM_ABBRV[key];
+            });
+
+            Object.keys(orderedAbbrv).forEach(key => {
+                console.log(`\t${key}: ${orderedAbbrv[key]}`);
+            });
+            break;
+        case '--current-dk-games':  // `node index.js --current-dk-games`
+            console.log("Retrieving list of current DraftKings games...");
+
+            const teamAbbrvs = await getCurrentGames();
+            console.log(teamAbbrvs);
+            break;
+        case '--store-salary-data': // `node index.js --store-salary-data {week}`
+            console.log("Storing all current DraftKings salary lineups...");
+
+            const [week] = args.slice(1);
+
+            storeSalaryData(parseInt(week));
+            break;
+        case '--help':  // `node index.js --help`
+            console.log("Options...");
+            console.log("\t--current-dk-games\n\t\t=> list all available NFL Captain's games");
+            console.log("\t--team-abbrv\n\t\t=> list valid NFL team name abbreviations");
+            console.log("\t--update-stats\n\t\t=> grab latest stats from pro-footbal-reference.com and store stats in DB");
+            console.log("\t--store-salary-data {week}\n\t\t=> retrieve current salary lineups and store stats in DB");
+            console.log("\t--generate-team {weekNumber} {teamA} {teamB} [{useTestData}]\n\t\t=> generate DraftKings lineups based on predicted stats");
+            break;
+        default:
+            console.log('Invalid args. Run `node index.js --help` for valid command list.');
+    }
 }
 
 run();
