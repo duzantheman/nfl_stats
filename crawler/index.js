@@ -2,7 +2,7 @@ const { performance } = require('perf_hooks');
 
 // const { TEAM_ABBRV, getStats } = require("./utility/espn");
 const { TEAM_ABBRV, getStats } = require("./utility/pro-football-ref");
-const { writeStats, getAverageData, storePlayerSalaries } = require("./utility/mongo");
+const { writeStats, getAverageData, storePlayerSalaries, retrievePlayerSalaries } = require("./utility/mongo");
 const { getDraftKingsValue, getPlayerSalaries, getCurrentGames } = require("./utility/draft-kings");
 
 const testSalaries = require("./game-salaries.json");
@@ -42,6 +42,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData
     let homeTeam, awayTeam;
     if (useTestData) {
         // -- retrieve stored player salaries from mongo
+        playerSalaries = await retrievePlayerSalaries(new Date().getFullYear(), weekNumber, teamA, teamB);
     } else {
         // -- retrieve stored player salaries from draft-kings
         [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(teamA, teamB);

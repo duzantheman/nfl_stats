@@ -271,6 +271,34 @@ const storePlayerSalaries = async (playerSalaries, week, homeTeam, awayTeam) => 
     }
 }
 
+const retrievePlayerSalaries = async (year, week, teamA, teamB) => {
+    const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
+    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+
+    try {
+        await client.connect();
+
+        const result = await client.db(dbName).collection("game_salaries").findOne(
+            {                   // Query parameter
+                $and: [
+                    { "week": week },
+                    { "year": year },
+                    { $or: [{ "homeTeam": teamA }, { "homeTeam": teamB },] },
+                    { $or: [{ "awayTeam": teamA }, { "awayTeam": teamB },] }
+                ]
+            }
+        );
+
+        return result.playerSalaries;
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+}
+
 module.exports.writeStats = writeStats;
 module.exports.getAverageData = getAverageData;
 module.exports.storePlayerSalaries = storePlayerSalaries;
+module.exports.retrievePlayerSalaries = retrievePlayerSalaries;
