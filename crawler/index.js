@@ -3,10 +3,9 @@ const { performance } = require('perf_hooks');
 // const { TEAM_ABBRV, getStats } = require("./utility/espn");
 const { TEAM_ABBRV, getStats } = require("./utility/pro-football-ref");
 const { writeStats, getAverageData } = require("./utility/mongo");
-const { getDraftKingsValue } = require("./utility/draft-kings");
+const { getDraftKingsValue, getPlayerSalaries } = require("./utility/draft-kings");
 
-// const salaries = require("./")
-const salaries = require("./game-salaries.json");
+const testSalaries = require("./game-salaries.json");
 
 /*
  * TODOS
@@ -64,17 +63,26 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     // -- retrieve data and build out weekly averages
     const avgData = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
 
+    // -- DEBUG
+    // console.log(JSON.stringify(avgData));
+
     // -- calculate DraftKings points based on rules
     const DKPlayers = getDraftKingsValue(avgData, numberOfWeeks);
 
-    // -- match players up with given salaries
-    const playerSalaries = salaries.find(game => {
-        return game.year === new Date().getFullYear() && game.week === weekNumber &&
-            (
-                (game.homeTeam === teamA && game.awayTeam === teamB) ||
-                (game.homeTeam === teamB && game.awayTeam === teamA)
-            )
-    }).players;
+    // -- TESTING -- get player salaries from file used for testing
+    // const playerSalaries = testSalaries.find(game => {
+    //     return game.year === new Date().getFullYear() && game.week === weekNumber &&
+    //         (
+    //             (game.homeTeam === teamA && game.awayTeam === teamB) ||
+    //             (game.homeTeam === teamB && game.awayTeam === teamA)
+    //         )
+    // }).playerList;
+
+    // -- ACTUAL -- get player salaries from DraftKings API
+    const playerSalaries = await getPlayerSalaries(teamA, teamB);
+
+    // -- DEBUG
+    console.log(JSON.stringify(playerSalaries));
 
     console.log();
 
@@ -93,13 +101,13 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
             const playerSalLastName = palyerSalNameArray.slice(1).join(" ");
             return playerSal.team === team &&
                 (
-                    // O. Beckham Jr. vs Odell Beckham Jr.
                     playerSalName === name ||
+                    playerSalName.replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "") === name ||
                     (
                         playerSalLastName === lastName && // -- compare last names
                         playerSalFirstNameInitial === firstNameInitial // -- compare first initial
                     )
-                ); // will need to add name abbrv handling in here
+                );
         });
 
         if (playerSalary && !playerSalary.injured) {
@@ -119,59 +127,112 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
             dkPlayer["dollarsPerPoint"] = -1;
             dkPlayer["pointsPerDollar"] = -1;
         }
-
-        // -- testing this out for memory conservation
-        delete dkPlayer["properties"];
     });
 
+    // -- check for salary players that we dont have stats for
+    playerSalaries.forEach(playerSal => {
+        const playerSalName = playerSal.name.trim().toLowerCase();
+        const palyerSalNameArray = playerSalName.split(" ");
+        const playerSalFirstNameInitial = palyerSalNameArray[0].charAt(0);
+        const playerSalLastName = palyerSalNameArray.slice(1).join(" ");
+
+        const playerFound = DKPlayers.find(dkPlayer => {
+            const name = dkPlayer.name.trim().toLowerCase();
+            const nameArray = name.split(" ");
+            const firstNameInitial = nameArray[0].charAt(0);
+            const lastName = nameArray.slice(1).join(" ");
+            const team = dkPlayer.team;
+            return playerSal.team === team &&
+                (
+                    // -- name comparison
+                    playerSalName === name ||
+                    playerSalName.replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "") === name ||
+                    (
+                        playerSalLastName === lastName && // -- compare last names
+                        playerSalFirstNameInitial === firstNameInitial // -- compare first initial
+                    )
+                );
+        });
+
+        if (!playerFound) {
+            console.log(`No matching statistics for ${playerSalName} from ${playerSal.team}`);
+        }
+    });
+
+    // -- filter out players we dont have values for
     const filteredPlayers = DKPlayers.filter(player => player["salary"] !== -1);
 
     // -- sort by average DK points
     filteredPlayers.sort(function (a, b) {
         return a.draftKingsPoints > b.draftKingsPoints ? -1 : 1;
     });
-    // console.log(JSON.stringify(filteredPlayers));
 
-    // // -- sort by avg DK points per dollar
-    // filteredPlayers.sort(function (a, b) {
-    //     return a.pointsPerDollar > b.pointsPerDollar ? -1 : 1;
-    // });
-    // console.log(JSON.stringify(filteredPlayers));
 
     // -- DEBUG
     const t0 = performance.now();
 
-
     // -- make a combination of every single possible team
-    // -- filter out anything over salary cap ($50,000)
-    // -- sort by top predicted DraftKings points
     const possibleTeams = [];
     for (let captain = 0; captain < filteredPlayers.length; captain++) {
-        // let teamTotal = filteredPlayers[captain].salary;
-        for (let flexOne = captain + 1; flexOne < filteredPlayers.length; flexOne++) {
+        for (let flexOne = 0; flexOne < filteredPlayers.length; flexOne++) {
+            if (flexOne === captain) continue;
             for (let flexTwo = flexOne + 1; flexTwo < filteredPlayers.length; flexTwo++) {
+                if (flexTwo === captain) continue;
                 for (let flexThree = flexTwo + 1; flexThree < filteredPlayers.length; flexThree++) {
+                    if (flexThree === captain) continue;
                     for (let flexFour = flexThree + 1; flexFour < filteredPlayers.length; flexFour++) {
+                        if (flexFour === captain) continue;
                         for (let flexFive = flexFour + 1; flexFive < filteredPlayers.length; flexFive++) {
-                            const totalSalary = filteredPlayers[captain].salary +
+                            if (flexFive === captain) continue;
+                            const totalSalary = (filteredPlayers[captain].salary * 1.5) +
                                 filteredPlayers[flexOne].salary +
                                 filteredPlayers[flexTwo].salary +
                                 filteredPlayers[flexThree].salary +
                                 filteredPlayers[flexFour].salary +
                                 filteredPlayers[flexFive].salary;
-                            const totalDraftKingsPoints = filteredPlayers[captain].draftKingsPoints +
+                            const totalDraftKingsPoints = (filteredPlayers[captain].draftKingsPoints * 1.5) +
                                 filteredPlayers[flexOne].draftKingsPoints +
                                 filteredPlayers[flexTwo].draftKingsPoints +
                                 filteredPlayers[flexThree].draftKingsPoints +
                                 filteredPlayers[flexFour].draftKingsPoints +
                                 filteredPlayers[flexFive].draftKingsPoints;
                             possibleTeams.push({
-                                "captain": filteredPlayers[captain].name,
-                                "flex1": filteredPlayers[flexOne].name,
-                                "flex2": filteredPlayers[flexTwo].name,
-                                "flex3": filteredPlayers[flexThree].name,
-                                "flex4": filteredPlayers[flexFour].name,
-                                "flex5": filteredPlayers[flexFive].name,
+                                // "captain": filteredPlayers[captain].name,
+                                // "flex1": filteredPlayers[flexOne].name,
+                                // "flex2": filteredPlayers[flexTwo].name,
+                                // "flex3": filteredPlayers[flexThree].name,
+                                // "flex4": filteredPlayers[flexFour].name,
+                                // "flex5": filteredPlayers[flexFive].name,
+                                "captain": {
+                                    player: filteredPlayers[captain].name,
+                                    team: filteredPlayers[captain].team,
+                                    avgPoints: filteredPlayers[captain].draftKingsPoints
+                                },
+                                "flex1": {
+                                    player: filteredPlayers[flexOne].name,
+                                    team: filteredPlayers[flexOne].team,
+                                    avgPoints: filteredPlayers[flexOne].draftKingsPoints
+                                },
+                                "flex2": {
+                                    player: filteredPlayers[flexTwo].name,
+                                    team: filteredPlayers[flexTwo].team,
+                                    avgPoints: filteredPlayers[flexTwo].draftKingsPoints
+                                },
+                                "flex3": {
+                                    player: filteredPlayers[flexThree].name,
+                                    team: filteredPlayers[flexThree].team,
+                                    avgPoints: filteredPlayers[flexThree].draftKingsPoints
+                                },
+                                "flex4": {
+                                    player: filteredPlayers[flexFour].name,
+                                    team: filteredPlayers[flexFour].team,
+                                    avgPoints: filteredPlayers[flexFour].draftKingsPoints
+                                },
+                                "flex5": {
+                                    player: filteredPlayers[flexFive].name,
+                                    team: filteredPlayers[flexFive].team,
+                                    avgPoints: filteredPlayers[flexFive].draftKingsPoints
+                                },
                                 totalSalary,
                                 totalDraftKingsPoints
                             });
@@ -182,6 +243,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
         }
     }
 
+    // -- filter out anything over salary cap ($50,000)
     const filteredPossibleTeams = possibleTeams.filter(team => team.totalSalary <= 50000);
 
     const t1 = performance.now()
@@ -191,6 +253,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     console.log(`Possible unflitered combinations: ${possibleTeams.length}`);
     console.log(`Possible flitered combinations: ${filteredPossibleTeams.length}`);
 
+    // -- sort by top predicted DraftKings points
     filteredPossibleTeams.sort((a, b) => {
         return a.totalDraftKingsPoints > b.totalDraftKingsPoints ? -1 : 1;
     });

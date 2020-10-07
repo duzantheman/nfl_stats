@@ -1,36 +1,39 @@
-/*
- *
- Points
-	Offense
+const axios = require('axios');
 
-	Defense
-		Sack +1 Pt
-		Interception +2 Pts
-		Fumble Recovery +2 Pts
-		Punt/Kickoff/FG Return for TD +6 Pts
-		Interception Return TD +6 Pts
-		Fumble Recovery TD +6 Pts
-		Blocked Punt or FG Return TD +6 Pts
-		Safety +2 Pts
-		Blocked Kick +2 Pts
-		2 Pt Conversion/Extra Point Return +2 Pts
-		
-		(Points Allowed only includes points surrendered while defense/special teams is on the field, not something like a pick six)
-		0 Points Allowed +10 Pts
-		1 – 6 Points Allowed +7 Pts
-		7 – 13 Points Allowed +4 Pts
-		14 – 20 Points Allowed +1 Pt
-		21 – 27 Points Allowed +0 Pts
-		28 – 34 Points Allowed -1 Pt
-		35+ Points Allowed -4 Pts
-		
-	Kicker Categories
-		Extra Point +1 Pt
-		0-39 Yard FG +3 Pts
-		40-49 Yard FG +4 Pts
-		50+ Yard FG +5 Pts
- * 
- */
+const DK_TEAM_ABBRV_CONV = {
+    "PIT": "Pittsburg Steelers",
+    "CHI": "CHI",
+    "CLE": "Cleveland Browns",
+    "CAR": "Carolina Panthers",
+    "SF": "SFO",
+    "NOR": "New Orleans Saints",
+    "MIN": "Minnesota Vikings",
+    "PHI": "PHI",
+    "SEA": "Seattle Seahawks",
+    "HOU": "Houston Texans",
+    "WAS": "Washington (Redskins)",
+    "JAX": "Jacksonville Jaguars",
+    "IND": "Indianapolis Colts",
+    "TEN": "Tennessee Titans",
+    "NE": "NWE",
+    "GB": "GNB",
+    "LV": "LVR",
+    "CIN": "Cincinnati Bengals",
+    "NYG": "NYG",
+    "DEN": "Denver Broncos",
+    "TB": "TAM",
+    "LAR": "LAR",
+    "LAC": "Los Angeles Chargers",
+    "BUF": "BUF",
+    "MIA": "Miami Dolphins",
+    "ATL": "ATL",
+    "NYJ": "New York Jets",
+    "DET": "Detriot Lions",
+    "ARI": "Arizone Cardinals",
+    "DAL": "Dallas Cowboys",
+    "KC": "KAN",
+    "BAL": "Baltimore Ravens"
+};
 
 const getDraftKingsValue = (averageData, numberOfWeeks) => {
 
@@ -63,6 +66,18 @@ const getDraftKingsValue = (averageData, numberOfWeeks) => {
             totalPoints += parseFloat(averageData[player][`avgInterceptions`] || 0) * -1;
             totalPoints += parseFloat(averageData[player][`avgFumblesLost`] || 0) * -1;
             totalPoints += parseFloat(averageData[player][`avgKickReturnTD`] || 0) * 6;
+
+            // -- Returns
+            totalPoints += parseFloat(averageData[player][`totalKickReturnTD`] || 0) * 6;
+
+            // -- Kicking
+            // Extra Point +1 Pt
+            // 0-39 Yard FG +3 Pts
+            // 40-49 Yard FG +4 Pts
+            // 50+ Yard FG +5 Pts
+            // -- TODO: right now we dont have data for FG distance, so we are defaulting to 3 points for each FG
+            totalPoints += parseFloat(averageData[player][`avgExtraPoints`] || 0) * 1;
+            totalPoints += parseFloat(averageData[player][`avgFieldGoals`] || 0) * 3;
         }
 
         DKPlayers.push({
@@ -76,6 +91,80 @@ const getDraftKingsValue = (averageData, numberOfWeeks) => {
     });
 
     return DKPlayers;
+};
+
+const getPlayerSalaries = async (teamA, teamB) => {
+    // -- retrieve current NFL captains games
+    let page = "https://api.draftkings.com/draftgroups/v1/";
+    console.log("Visiting page " + page);
+    try {
+        const response = await axios.get(page);
+        if (response.status !== 200) {
+            console.log("Error occurred while fetching data");
+        }
+
+        const playableGames = response.data.draftGroups.filter(draftGroup => draftGroup.contestType.contestTypeId === 96);
+        const game = playableGames.find(draftGroup => {
+            const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]);
+            console.log(teamAbbrvs);
+            return teamAbbrvs.includes(teamA) && teamAbbrvs.includes(teamB);
+        });
+        if (!game) {
+            console.log(`Couldnt find game for ${teamA} and ${teamB}.`);
+            return null;
+        }
+
+        // -- retrieve player lineup from the game we're looking for
+        page = `https://www.draftkings.com/lineup/getavailableplayers?draftGroupId=${game.draftGroupId}`;
+        console.log("Visiting page " + page);
+        const playersResponse = await axios.get(page);
+        if (playersResponse.status !== 200) {
+            console.log("Error occurred while fetching data");
+        }
+
+        // -- build out team id reference object
+        let teamInfo = {};
+        Object.keys(playersResponse.data.teamList).forEach(key => {
+            const item = playersResponse.data.teamList[key];
+            teamInfo[item.htid] = item.ht;
+            teamInfo[item.atid] = item.at;
+        });
+
+        // -- build out available players list
+        const dkPlayersList = [];
+        playersResponse.data.playerList.forEach(dkPlayer => {
+            const teamAbbrv = DK_TEAM_ABBRV_CONV[teamInfo[dkPlayer.tid]];
+            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O") {
+                if (dkPlayer.pn === "DST") {
+                    dkPlayersList.push({
+                        "name": `${teamAbbrv}-${dkPlayer.pn}`,
+                        "team": teamAbbrv,
+                        "position": dkPlayer.pn,
+                        "salary": dkPlayer.s
+                    });
+                } else {
+                    dkPlayersList.push({
+                        "name": `${dkPlayer.fn} ${dkPlayer.ln}`,
+                        "team": teamAbbrv,
+                        "position": dkPlayer.pn,
+                        "salary": dkPlayer.s
+                    });
+                }
+            } else {
+                dkPlayersList.push({
+                    "name": `${dkPlayer.fn} ${dkPlayer.ln}`,
+                    "team": teamAbbrv,
+                    "injured": true
+                });
+            }
+        });
+
+        return dkPlayersList;
+    }
+    catch (ex) {
+        console.log("Error occurred while fetching data");
+        console.log(ex);
+    }
 };
 
 const getDraftKingsValue_newer = (averageData, numberOfWeeks) => {
@@ -229,3 +318,4 @@ const getDraftKingsValue_old = (averageData) => {
 }
 
 module.exports.getDraftKingsValue = getDraftKingsValue;
+module.exports.getPlayerSalaries = getPlayerSalaries;
