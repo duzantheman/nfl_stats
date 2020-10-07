@@ -143,7 +143,25 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                         }
                     });
 
-                    // -- TODO: total up relevant kicking data
+                    // -- total up relevant kicking data
+                    game.kicking.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
+                        if (!avgData[player.player]) {
+                            avgData[player.player] = {
+                                team: player.team,
+                                totalExtraPoints: parseInt(player.xpm || 0),
+                                totalFieldGoals: parseInt(player.fgm || 0),
+                                weeksPlayed: 1,
+                                weeks: [`${year} - Week ${week}`]
+                            }
+                        } else {
+                            avgData[player.player].totalExtraPoints = (avgData[player.player].totalExtraPoints || 0) +
+                                parseInt(player.xpm || 0);
+                            avgData[player.player].totalFieldGoals = (avgData[player.player].totalFieldGoals || 0) +
+                                parseInt(player.fgm || 0);
+                            avgData[player.player].weeksPlayed += 1;
+                            avgData[player.player]["weeks"].push(`${year} - Week ${week}`);
+                        }
+                    });
 
                     // -- TODO: total up relevant defenseive data (might be taken care of in next section)
 
@@ -191,8 +209,8 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
         Object.keys(avgData).forEach(player => {
             Object.keys(avgData[player]).filter(key => key !== "team").forEach(key => {
                 const newKey = `avg${key.split("total")[1]}`;
-                const weeksPlayer = player.includes("-DST") ? numberOfWeeks : avgData[player].weeksPlayed;
-                avgData[player][newKey] = avgData[player][key] / (weeksPlayer * 1.0);
+                const weeksPlayed = player.includes("-DST") ? numberOfWeeks : avgData[player].weeksPlayed;
+                avgData[player][newKey] = avgData[player][key] / (weeksPlayed * 1.0);
             });
         });
 
