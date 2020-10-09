@@ -2,7 +2,7 @@ const { performance } = require('perf_hooks');
 
 // const { TEAM_ABBRV, getStats } = require("./utility/espn");
 const { TEAM_ABBRV, getStats } = require("./utility/pro-football-ref");
-const { writeStats, getAverageData, storePlayerSalaries, retrievePlayerSalaries } = require("./utility/mongo");
+const { getLatestStatWeek, writeLatestStatWeek, writeStats, getAverageData, storePlayerSalaries, retrievePlayerSalaries } = require("./utility/mongo");
 const { getDraftKingsValue, getPlayerSalaries, getCurrentGames } = require("./utility/draft-kings");
 
 const testSalaries = require("./game-salaries.json");
@@ -19,9 +19,25 @@ const testSalaries = require("./game-salaries.json");
  */
 
 const updateStats = async () => {
-    const stats = await getStats();
-    // console.log(JSON.stringify(stats));
-    await writeStats(stats);
+    // -- retrieve last week that has data
+    const latestStatWeek = await getLatestStatWeek();
+
+    let stats = [], latestYear, latestWeek;
+    if (latestStatWeek) {
+        // -- grab any data from that week forward (in case we missed a game that week)
+        [stats, latestYear, latestWeek] = await getStats(latestStatWeek.year, latestStatWeek.week);
+    } else {
+        // -- grab all data
+        [stats, latestYear, latestWeek] = await getStats(-1, -1);
+    }
+
+    // -- write latest stats to database
+    const success = await writeLatestStatWeek(latestYear, latestWeek);
+    if (success) {
+        await writeStats(stats);
+    } else {
+        console.log("Error writing latest stat week to database");
+    }
 }
 
 const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData = false) => {
@@ -52,8 +68,8 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData
     }
 
     // -- DEBUG
-    console.log();
-    console.log(JSON.stringify(playerSalaries));
+    // console.log();
+    // console.log(JSON.stringify(playerSalaries));
 
     console.log();
 
@@ -229,8 +245,11 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData
         return a.totalDraftKingsPoints > b.totalDraftKingsPoints ? -1 : 1;
     });
 
+    const displayedTeamsCount = 100;
+
     console.log();
-    console.log(JSON.stringify(filteredPossibleTeams.slice(0, 101)));
+    console.log(`Top ${displayedTeamsCount} teams by predicted points...`);
+    console.log(JSON.stringify(filteredPossibleTeams.slice(0, displayedTeamsCount + 1)));
 };
 
 const storeSalaryData = async (week) => {

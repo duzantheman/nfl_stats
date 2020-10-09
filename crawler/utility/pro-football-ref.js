@@ -78,18 +78,20 @@ const TEAM_ABBRV = {
 };
 
 // const YEARS = [2018, 2019, 2020]; // -- order from low to high
-const YEARS = [2019, 2020];
+const YEARS = [2015, 2016, 2017, 2018, 2019, 2020];
 const WEEKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]; // 18-21 are postseason
 const PAGE_BASE = "https://www.pro-football-reference.com";
 
-const getStats = async () => {
+const getStats = async (storedYear, storedWeek) => {
     const allWeeks = [];
     let weeksRemaining = true;
-    for (const year of YEARS) {
+    let latestYear = storedYear, latestWeek = storedWeek;
+    for (const year of YEARS.filter(year => year >= storedYear)) {
         if (!weeksRemaining) continue;
         console.log(`Year: ${year}`);
+        latestYear = year;
 
-        for (const week of WEEKS) {
+        for (const week of WEEKS.filter(week => week >= storedWeek)) {
             if (!weeksRemaining) continue;
             console.log(`Week: ${week}`);
 
@@ -119,6 +121,8 @@ const getStats = async () => {
                     continue;
                 }
 
+                latestWeek = week;
+
                 // -- DEBUG
                 // console.log(gamesList);
 
@@ -139,7 +143,7 @@ const getStats = async () => {
         }
     }
 
-    return allWeeks;
+    return [allWeeks, latestYear, latestWeek];
 };
 
 const getWeeklyGames = ($) => {
@@ -501,9 +505,6 @@ const camelize = (str) => {
         return index === 0 ? word.toLowerCase() : word.toUpperCase();
     }).replace(/\s+/g, '');
 }
-
-// -- DEBUG
-// getStats();
 
 module.exports.getStats = getStats;
 module.exports.TEAM_ABBRV = TEAM_ABBRV;

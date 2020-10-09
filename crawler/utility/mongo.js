@@ -4,35 +4,68 @@ const user = "admin";
 const pw = "q5xEsVlZsOwwimDs";
 const clusterName = "cluster0.kt19q.mongodb.net";
 const dbName = "nfl_data";
-// const connectDB = async () => {
-//     const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
-//     const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-//     // client.connect(err => {
-//     //     const collection = client.db("test").collection("devices");
-//     //     // perform actions on the collection object
-//     //     client.close();
-//     // });
 
-//     try {
-//         // Connect to the MongoDB cluster
-//         await client.connect();
+const getLatestStatWeek = async () => {
+    const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
+    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
-//         // Make the appropriate DB calls
-//         await listDatabases(client);
+    try {
+        await client.connect();
 
-//     } catch (e) {
-//         console.error(e);
-//     } finally {
-//         await client.close();
-//     }
-// }
+        const result = await client.db(dbName).collection("latest_stat_week").findOne({});
 
-// const listDatabases = async (client) => {
-//     databasesList = await client.db().admin().listDatabases();
+        //  -- DEBUG
+        console.log(result);
 
-//     console.log("Databases:");
-//     databasesList.databases.forEach(db => console.log(` - ${db.name}`));
-// };
+        return result;
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.close();
+    }
+}
+
+const writeLatestStatWeek = async (latestYear, latestWeek) => {
+    const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
+    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+    // client.connect(err => {
+    //     const collection = client.db("test").collection("devices");
+    //     // perform actions on the collection object
+    //     client.close();
+    // });
+
+    try {
+        // Connect to the MongoDB cluster
+        await client.connect();
+
+        // Make the appropriate DB calls
+        const result = await client.db(dbName).collection("latest_stat_week").updateOne(
+            {                   // Query parameter
+                "placeholder": "abc"
+            },
+            {                   // Update document
+                $setOnInsert: { placeholder: "abc" },
+                $set: {
+                    week: latestWeek,
+                    year: latestYear
+                },
+            },
+            { upsert: true }    // Options
+        );
+
+        console.log(`${result.upsertedCount} new listing(s) created.`);
+        console.log(`${result.modifiedCount} listing(s) modified.`);
+
+        return true;
+
+    } catch (e) {
+        console.error(e);
+        return false;
+    } finally {
+        await client.close();
+    }
+}
 
 const writeStats = async (stats) => {
     const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
@@ -47,10 +80,27 @@ const writeStats = async (stats) => {
         // Connect to the MongoDB cluster
         await client.connect();
 
-        // Make the appropriate DB calls
-        const result = await client.db(dbName).collection("weekly_stats").insertMany(stats);
+        for (const stat of stats) {
+            const result = await client.db(dbName).collection("weekly_stats").updateOne(
+                {                   // Query parameter
+                    year: stat.year,
+                    week: stat.week
+                },
+                {                   // Update document
+                    $setOnInsert: {
+                        year: stat.year,
+                        week: stat.week
+                    },
+                    $set: {
+                        games: stat.games
+                    }
+                },
+                { upsert: true }    // Options
+            );
 
-        console.log(`${result.insertedCount} new listing(s) created.`);
+            console.log(`${result.upsertedCount} new listing(s) created.`);
+            console.log(`${result.modifiedCount} listing(s) modified.`);
+        }
 
     } catch (e) {
         console.error(e);
@@ -298,6 +348,8 @@ const retrievePlayerSalaries = async (year, week, teamA, teamB) => {
     }
 }
 
+module.exports.getLatestStatWeek = getLatestStatWeek;
+module.exports.writeLatestStatWeek = writeLatestStatWeek;
 module.exports.writeStats = writeStats;
 module.exports.getAverageData = getAverageData;
 module.exports.storePlayerSalaries = storePlayerSalaries;

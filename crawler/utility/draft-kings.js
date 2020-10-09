@@ -1,36 +1,37 @@
 const axios = require('axios');
 
+// -- used to convert DraftKings abbreviations to stored ProFootbalReference abbreviations
 const DK_TEAM_ABBRV_CONV = {
-    "PIT": "Pittsburg Steelers",
+    "PIT": "PIT",
     "CHI": "CHI",
-    "CLE": "Cleveland Browns",
+    "CLE": "CLE",
     "CAR": "CAR",
     "SF": "SFO",
     "NOR": "New Orleans Saints",
-    "MIN": "Minnesota Vikings",
+    "MIN": "MIN",
     "PHI": "PHI",
-    "SEA": "Seattle Seahawks",
-    "HOU": "Houston Texans",
-    "WAS": "Washington (Redskins)",
-    "JAX": "Jacksonville Jaguars",
-    "IND": "Indianapolis Colts",
-    "TEN": "Tennessee Titans",
+    "SEA": "SEA",
+    "HOU": "HOU",
+    "WAS": "WAS",
+    "JAX": "JAX",
+    "IND": "IND",
+    "TEN": "TEN",
     "NE": "NWE",
     "GB": "GNB",
     "LV": "LVR",
     "CIN": "CIN",
     "NYG": "NYG",
-    "DEN": "Denver Broncos",
+    "DEN": "DEN",
     "TB": "TAM",
     "LAR": "LAR",
     "LAC": "Los Angeles Chargers",
     "BUF": "BUF",
-    "MIA": "Miami Dolphins",
+    "MIA": "MIA",
     "ATL": "ATL",
-    "NYJ": "New York Jets",
+    "NYJ": "NYJ",
     "DET": "Detriot Lions",
-    "ARI": "Arizone Cardinals",
-    "DAL": "Dallas Cowboys",
+    "ARI": "ARI",
+    "DAL": "DAL",
     "KC": "KAN",
     "BAL": "BAL"
 };
@@ -137,11 +138,14 @@ const getPlayerSalaries = async (teamA, teamB) => {
             teamInfo[item.atid] = item.at;
         });
 
+        // -- DEBUG
+        // console.log(JSON.stringify(playersResponse.data.playerList));
+
         // -- build out available players list
         const dkPlayersList = [];
         playersResponse.data.playerList.forEach(dkPlayer => {
             const teamAbbrv = DK_TEAM_ABBRV_CONV[teamInfo[dkPlayer.tid]];
-            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O") {
+            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D") {
                 if (dkPlayer.pn === "DST") {
                     dkPlayersList.push({
                         "name": `${teamAbbrv}-${dkPlayer.pn}`,
