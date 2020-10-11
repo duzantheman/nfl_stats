@@ -1,41 +1,5 @@
 const axios = require('axios');
 
-// -- used to convert DraftKings abbreviations to stored ProFootbalReference abbreviations
-const DK_TEAM_ABBRV_CONV = {
-    "PIT": "PIT",
-    "CHI": "CHI",
-    "CLE": "CLE",
-    "CAR": "CAR",
-    "SF": "SFO",
-    "NOR": "New Orleans Saints",
-    "MIN": "MIN",
-    "PHI": "PHI",
-    "SEA": "SEA",
-    "HOU": "HOU",
-    "WAS": "WAS",
-    "JAX": "JAX",
-    "IND": "IND",
-    "TEN": "TEN",
-    "NE": "NWE",
-    "GB": "GNB",
-    "LV": "LVR",
-    "CIN": "CIN",
-    "NYG": "NYG",
-    "DEN": "DEN",
-    "TB": "TAM",
-    "LAR": "LAR",
-    "LAC": "Los Angeles Chargers",
-    "BUF": "BUF",
-    "MIA": "MIA",
-    "ATL": "ATL",
-    "NYJ": "NYJ",
-    "DET": "Detriot Lions",
-    "ARI": "ARI",
-    "DAL": "DAL",
-    "KC": "KAN",
-    "BAL": "BAL"
-};
-
 const getDraftKingsValue = (averageData, numberOfWeeks) => {
 
     // console.log(JSON.stringify(averageData));
@@ -109,11 +73,11 @@ const getPlayerSalaries = async (teamA, teamB) => {
         // -- filter by NFL captains games
         const playableGames = response.data.draftGroups.filter(draftGroup => draftGroup.contestType.contestTypeId === 96);
         const game = playableGames.find(draftGroup => {
-            const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]);
+            const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => convertTeamAbbreviation(team));
             // console.log(teamAbbrvs);
             if (teamAbbrvs.includes(teamA) && teamAbbrvs.includes(teamB)) {
-                homeTeam = teamAbbrvs[0];
-                awayTeam = teamAbbrvs[1];
+                awayTeam = teamAbbrvs[0];
+                homeTeam = teamAbbrvs[1];
                 return true;
             }
         });
@@ -144,7 +108,7 @@ const getPlayerSalaries = async (teamA, teamB) => {
         // -- build out available players list
         const dkPlayersList = [];
         playersResponse.data.playerList.forEach(dkPlayer => {
-            const teamAbbrv = DK_TEAM_ABBRV_CONV[teamInfo[dkPlayer.tid]];
+            const teamAbbrv = convertTeamAbbreviation(teamInfo[dkPlayer.tid]);
             if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D") {
                 if (dkPlayer.pn === "DST") {
                     dkPlayersList.push({
@@ -193,8 +157,8 @@ const getCurrentGames = async () => {
         // -- filter by NFL captains games
         const playableGames = response.data.draftGroups.filter(draftGroup => draftGroup.contestType.contestTypeId === 96);
         playableGames.forEach(draftGroup => {
-            teamAbbrvs.push(draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]));
-            // const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => DK_TEAM_ABBRV_CONV[team.trim()]);
+            teamAbbrvs.push(draftGroup.games[0].description.split("@").map(team => convertTeamAbbreviation(team.trim())));
+            // const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => convertTeamAbbreviation(team.trim()));
             // console.log(teamAbbrvs);
         });
 
@@ -354,6 +318,61 @@ const getDraftKingsValue_old = (averageData) => {
     });
 
     console.log(JSON.stringify(averageData));
+}
+
+// -- UTILITY FUNCTIONS --
+
+// -- used to convert DraftKings abbreviations to stored ProFootbalReference abbreviations
+// const DK_TEAM_ABBRV_CONV = {
+//     "PIT": "PIT",
+//     "CHI": "CHI",
+//     "CLE": "CLE",
+//     "CAR": "CAR",
+//     "SF": "SFO",
+//     "NO": "NOR",
+//     "MIN": "MIN",
+//     "PHI": "PHI",
+//     "SEA": "SEA",
+//     "HOU": "HOU",
+//     "WAS": "WAS",
+//     "JAX": "JAX",
+//     "IND": "IND",
+//     "TEN": "TEN",
+//     "NE": "NWE",
+//     "GB": "GNB",
+//     "LV": "LVR",
+//     "CIN": "CIN",
+//     "NYG": "NYG",
+//     "DEN": "DEN",
+//     "TB": "TAM",
+//     "LAR": "LAR",
+//     "LAC": "LAC",
+//     "BUF": "BUF",
+//     "MIA": "MIA",
+//     "ATL": "ATL",
+//     "NYJ": "NYJ",
+//     "DET": "Detriot Lions",
+//     "ARI": "ARI",
+//     "DAL": "DAL",
+//     "KC": "KAN",
+//     "BAL": "BAL"
+// };
+const DK_TEAM_ABBRV_CONV = {
+    "SF": "SFO",
+    "NO": "NOR",
+    "NE": "NWE",
+    "GB": "GNB",
+    "LV": "LVR",
+    "TB": "TAM",
+    "DET": "Detriot Lions",
+    "KC": "KAN"
+};
+const convertTeamAbbreviation = (dkAbbrv) => {
+    if (DK_TEAM_ABBRV_CONV[dkAbbrv.trim()]) {
+        return DK_TEAM_ABBRV_CONV[dkAbbrv.trim()];
+    } else {
+        return dkAbbrv.trim();
+    }
 }
 
 module.exports.getDraftKingsValue = getDraftKingsValue;

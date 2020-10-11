@@ -1,11 +1,27 @@
 const { performance } = require('perf_hooks');
 
 // const { TEAM_ABBRV, getStats } = require("./utility/espn");
-const { TEAM_ABBRV, getStats } = require("./utility/pro-football-ref");
-const { getLatestStatWeek, writeLatestStatWeek, writeStats, getAverageData, storePlayerSalaries, retrievePlayerSalaries } = require("./utility/mongo");
-const { getDraftKingsValue, getPlayerSalaries, getCurrentGames } = require("./utility/draft-kings");
+const {
+    TEAM_ABBRV,
+    getStats
+} = require("./utility/pro-football-ref");
+const {
+    getLatestStatWeek,
+    writeLatestStatWeek,
+    writeStats,
+    getAverageData,
+    getStoredGameData,
+    storePlayerSalaries,
+    retrievePlayerSalaries,
+    retrieveAllPlayerSalaries
+} = require("./utility/mongo");
+const {
+    getDraftKingsValue,
+    getPlayerSalaries,
+    getCurrentGames
+} = require("./utility/draft-kings");
 
-const testSalaries = require("./game-salaries.json");
+// const testSalaries = require("./game-salaries.json");
 
 /*
  * TODOS
@@ -40,7 +56,7 @@ const updateStats = async () => {
     }
 }
 
-const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData = false) => {
+const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
 
     console.log(`Generating team for week ${weekNumber} - ${teamA} vs ${teamB}...`);
 
@@ -48,24 +64,17 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, useTestData
     // *** this is where the prediction algorithm is that we need to work on ***
     const avgData = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
 
-    // -- DEBUG
-    // console.log(JSON.stringify(avgData));
-
     // -- calculate DraftKings points based on rules
     const DKPlayers = getDraftKingsValue(avgData, numberOfWeeks);
 
     let playerSalaries = [];
     let homeTeam, awayTeam;
-    if (useTestData) {
-        // -- retrieve stored player salaries from mongo
-        playerSalaries = await retrievePlayerSalaries(new Date().getFullYear(), weekNumber, teamA, teamB);
-    } else {
-        // -- retrieve stored player salaries from draft-kings
-        [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(teamA, teamB);
 
-        // -- store data in mongo
-        storePlayerSalaries(playerSalaries, weekNumber, homeTeam, awayTeam);
-    }
+    // -- retrieve stored player salaries from draft-kings
+    [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(teamA, teamB);
+
+    // -- store data in mongo
+    storePlayerSalaries(playerSalaries, weekNumber, homeTeam, awayTeam);
 
     // -- DEBUG
     // console.log();
@@ -273,6 +282,38 @@ const storeSalaryData = async (week) => {
     // });
 };
 
+const runAlgorithmTest = async () => {
+    // 1) pull stored DraftKings salary (doing this because this will be the limiter in available data, not statisical data)
+
+    // -- retrieve stored player salaries from mongo
+    const storedDkGames = await retrieveAllPlayerSalaries();
+
+    // -- DEBUG
+    console.log(JSON.stringify([storedDkGames[0]]));
+
+    // 2) pull stored statistical data based on year/week/teams from the DK salary data and merge
+
+    // -- loop through storedDKGames to grab statistics by year/week/teams
+    // for (const dkGame of storedDkGames) {
+    for (const dkGame of [storedDkGames[0]]) {  // -- DEBUG - temp for testing
+        // -- get actual stats for the particular game
+        const gameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
+
+        // -- DEBUG
+        console.log(JSON.stringify(gameData));
+
+        // intermediate step - display the top team (within the salary cap)
+
+
+        // (steps 3 and 4 are probably going to look very similar to what we do in part of the "generateTeam()" function)
+        // 3) build out list of all possible teams under salary cap
+    }
+
+    // 4) display top 10? 20? 100? 
+
+    // 5) now repeat the process using generateTeam() call to see what we "predicted" and compare the results
+};
+
 const run = async () => {
     const args = process.argv.slice(2);
     // console.log('args: ', args);
@@ -282,14 +323,19 @@ const run = async () => {
 
             updateStats();
             break;
-        case '--generate-team':   // `node index.js --generate-team {weekNumber} {teamA} {teamB} [{useTestData}]` (assuming current year)
+        case '--generate-team':   // `node index.js --generate-team {weekNumber} {teamA} {teamB}` (assuming current year)
             console.log("Generating DraftKings teams...");
 
-            const [weekNumber, teamA, teamB, useTestDataStr] = args.slice(1);
-            const numberOfWeeks = 3;
-            const useTestData = useTestDataStr === "true";
+            const [weekNumber, teamA, teamB] = args.slice(1);
 
-            generateTeam(parseInt(weekNumber), numberOfWeeks, teamA.toUpperCase(), teamB.toUpperCase(), useTestData);
+            if (teamA === teamB) {
+                console.log("Teams need to be different.");
+                return;
+            }
+
+            const numberOfWeeks = 3;
+
+            generateTeam(parseInt(weekNumber), numberOfWeeks, teamA.toUpperCase(), teamB.toUpperCase());
             break;
         case '--team-abbrv':    // `node index.js --team-abbrv`
             console.log("Team abbreviations...");
@@ -316,13 +362,19 @@ const run = async () => {
 
             storeSalaryData(parseInt(week));
             break;
+        case '--run-test': // `node index.js --run-test`
+            console.log("Running algorithm test on previously stored data...");
+
+            runAlgorithmTest();
+            break;
         case '--help':  // `node index.js --help`
             console.log("Options...");
             console.log("\t--current-dk-games\n\t\t=> list all available NFL Captain's games");
             console.log("\t--team-abbrv\n\t\t=> list valid NFL team name abbreviations");
             console.log("\t--update-stats\n\t\t=> grab latest stats from pro-footbal-reference.com and store stats in DB");
             console.log("\t--store-salary-data {week}\n\t\t=> retrieve current salary lineups and store stats in DB");
-            console.log("\t--generate-team {weekNumber} {teamA} {teamB} [{useTestData}]\n\t\t=> generate DraftKings lineups based on predicted stats");
+            console.log("\t--generate-team {weekNumber} {teamA} {teamB}\n\t\t=> generate DraftKings lineups based on predicted stats");
+            console.log("\t--run-algorithm-test\n\t\t=> run algorithm test on historical data");
             break;
         default:
             console.log('Invalid args. Run `node index.js --help` for valid command list.');

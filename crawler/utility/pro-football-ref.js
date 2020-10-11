@@ -77,13 +77,13 @@ const TEAM_ABBRV = {
     "BAL": "Baltimore Ravens"
 };
 
-// const YEARS = [2018, 2019, 2020]; // -- order from low to high
-const YEARS = [2015, 2016, 2017, 2018, 2019, 2020];
+const YEARS = [2015, 2016, 2017, 2018, 2019, 2020]; // -- order from low to high
 const WEEKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]; // 18-21 are postseason
 const PAGE_BASE = "https://www.pro-football-reference.com";
 
 const getStats = async (storedYear, storedWeek) => {
-    const allWeeks = [];
+    // const allWeeks = [];
+    const allGames = [];
     let weeksRemaining = true;
     let latestYear = storedYear, latestWeek = storedWeek;
     for (const year of YEARS.filter(year => year >= storedYear)) {
@@ -94,12 +94,6 @@ const getStats = async (storedYear, storedWeek) => {
         for (const week of WEEKS.filter(week => week >= storedWeek)) {
             if (!weeksRemaining) continue;
             console.log(`Week: ${week}`);
-
-            const currentWeek = {
-                year,
-                week,
-                games: []
-            };
 
             const page = `${PAGE_BASE}/years/${year}/week_${week}.htm`
             console.log("Visiting page " + page);
@@ -129,11 +123,13 @@ const getStats = async (storedYear, storedWeek) => {
                 // -- DEBUG -- grab first game in list
                 // for (const gameUrl of gamesList.splice(0, 1)) {
                 for (const gameUrl of gamesList) {
-                    const gameStats = await getGameData(PAGE_BASE + gameUrl);
-                    currentWeek.games.push(gameStats);
+                    const gameData = await getGameData(PAGE_BASE + gameUrl);
+                    allGames.push({
+                        year,
+                        week,
+                        ...gameData
+                    });
                 }
-
-                allWeeks.push(currentWeek);
             }
             catch (ex) {
                 console.log("Error occurred while fetching data");
@@ -143,7 +139,7 @@ const getStats = async (storedYear, storedWeek) => {
         }
     }
 
-    return [allWeeks, latestYear, latestWeek];
+    return [allGames, latestYear, latestWeek];
 };
 
 const getWeeklyGames = ($) => {
@@ -175,6 +171,7 @@ const getGameData = async (gameUrl) => {
         // -- DEBUG
         console.log("Page title:  " + $('title').text());
 
+        let homeTeam, awayTeam;
         const gameStats = {
             // homeTeam: "",
             // awayTeam: "",
@@ -193,10 +190,12 @@ const getGameData = async (gameUrl) => {
                 const $2 = cheerio.load(element.data);
                 $2(`table > thead > tr > th`).each((index, element) => {
                     if ($(element).attr("data-stat") === "home_stat") {
-                        gameStats["homeTeam"] = $(element).text()
+                        // gameStats["homeTeam"] = $(element).text();
+                        homeTeam = $(element).text();
                     }
                     else if ($(element).attr("data-stat") === "vis_stat") {
-                        gameStats["awayTeam"] = $(element).text()
+                        // gameStats["awayTeam"] = $(element).text();
+                        awayTeam = $(element).text();
                     }
                 });
             });
@@ -278,12 +277,12 @@ const getGameData = async (gameUrl) => {
                 draftKingsPoints,
             });
 
-            if (player["team"] === gameStats["homeTeam"]) {
+            if (player["team"] === homeTeam) {
                 homeTeamOffensivePoints += parseInt(player["pass_td"] || 0) * 6;
                 homeTeamOffensivePoints += parseInt(player["rush_td"] || 0) * 6;
                 // homeTeamOffensivePoints += parseInt(player["rec_td"]) * 6;   // this should already be tallied by passing tds
             }
-            else if (player["team"] === gameStats["awayTeam"]) {
+            else if (player["team"] === awayTeam) {
                 awayTeamOffensivePoints += parseInt(player["pass_td"] || 0) * 6;
                 awayTeamOffensivePoints += parseInt(player["rush_td"] || 0) * 6;
                 // awayTeamOffensivePoints += parseInt(player["rec_td"]) * 6;   // this should already be tallied by passing tds
@@ -297,38 +296,40 @@ const getGameData = async (gameUrl) => {
 
         // -- kicking
         gameStats["kicking"].forEach(player => {
-            if (player["team"] === gameStats["homeTeam"]) {
+            /*
+             *
+                Extra Point - +1 Pt
+                0-39 Yard FG - +3 Pts
+                40-49 Yard FG - +4 Pts
+                50+ Yard FG - +5 Pts
+             * 
+             */
+            let draftKingsPoints = 0;
+            draftKingsPoints += parseInt(player["xpm"] || 0) * 1;
+            draftKingsPoints += parseInt(player["fgm"] || 0) * 3; // TODO: current dont have a way to dinstinguish distance
+
+            // -- TEMPORARY - move into draft-kings file
+            // player["draftKingsPoints"] = draftKingsPoints;
+            gameStats["draftKings"].push({
+                name: player["player"],
+                team: player["team"],
+                draftKingsPoints,
+            });
+
+            if (player["team"] === homeTeam) {
                 homeTeamOffensivePoints += parseInt(player["xpm"] || 0) * 1;
                 homeTeamOffensivePoints += parseInt(player["fgm"] || 0) * 3;
             }
-            else if (player["team"] === gameStats["awayTeam"]) {
+            else if (player["team"] === awayTeam) {
                 awayTeamOffensivePoints += parseInt(player["xpm"] || 0) * 1;
                 awayTeamOffensivePoints += parseInt(player["fgm"] || 0) * 3;
             }
             else {
                 console.log("***** there should always be a matching team *****");
-                console.log(`Player team: ${player["team"]}, Home Team: ${gameStats["homeTeam"]}, Away Team: ${gameStats["awayTeam"]}`);
+                console.log(`Player team: ${player["team"]}, Home Team: ${homeTeam}, Away Team: ${awayTeam}`);
             }
         });
 
-        // -- returns
-        gameStats["returns"].forEach(player => {
-            // TODO: what do we do with this information??? Some of it goes to offensive and defensive players,
-            //       but sometimes there are still player leftover here
-            if (player["team"] === gameStats["homeTeam"]) {
-                // ???
-            }
-            else if (player["team"] === gameStats["awayTeam"]) {
-                // ???
-            }
-            else {
-                console.log("***** there should always be a matching team *****");
-                console.log(`Player team: ${player["team"]}, Home Team: ${gameStats["homeTeam"]}, Away Team: ${gameStats["awayTeam"]}`);
-            }
-        });
-
-        // TODO: store DK points fr each individual defensive player. Then we can see who the "big hitters" are
-        //       and see if they're in or out for an upcoming game
         // -- assign team values to total points for DST of each team
         let homeTeamDstTotal = 0, awayTeamDstTotal = 0;
         let homeTeamSackTotal = 0, awayTeamSackTotal = 0;
@@ -342,64 +343,68 @@ const getGameData = async (gameUrl) => {
                 ??? 2 Pt Conversion/Extra Point Return +2 Pts ???
              */
 
-            // -- individual player value
-            let draftKingsPoints = 0;
-            draftKingsPoints += parseFloat(player["sacks"] || 0) * 1;
-            draftKingsPoints += parseInt(player["def_int"] || 0) * 2;
-            draftKingsPoints += parseInt(player["fumbles_rec"] || 0) * 2;
-            draftKingsPoints += parseInt(player["def_int_td"] || 0) * 6;
-            draftKingsPoints += parseInt(player["fumbles_rec_td"] || 0) * 6;
-
-            // -- TEMPORARY - move into draft-kings file
-            // player["draftKingsPoints"] = draftKingsPoints;
-
-            // -- grab any relevant player data from "returns" section
-            const playerReturnStats = gameStats["returns"].find(returnPlayer => returnPlayer["player"].trim() === player["player"].trim());
-            if (playerReturnStats) {
-                draftKingsPoints += parseInt(playerReturnStats["kick_ret_td"] || 0) * 6;
-                draftKingsPoints += parseInt(playerReturnStats["punt_ret_td"] || 0) * 6;
-            }
-
-
             // -- total team defensive value
-            if (player["team"] === gameStats["homeTeam"]) {
+            if (player["team"] === homeTeam) {
                 // -- add points to home team total
                 homeTeamSackTotal += parseFloat(player["sacks"] || 0);
                 homeTeamDstTotal += parseInt(player["def_int"] || 0) * 2;
                 homeTeamDstTotal += parseInt(player["fumbles_rec"] || 0) * 2;
                 homeTeamDstTotal += parseInt(player["def_int_td"] || 0) * 6;
                 homeTeamDstTotal += parseInt(player["fumbles_rec_td"] || 0) * 6;
-
-                // -- grab any relevant player data from "returns" section
-                const playerReturnStats = gameStats["returns"].find(returnPlayer => returnPlayer["player"].trim() === player["player"].trim());
-                if (playerReturnStats) {
-                    homeTeamDstTotal += parseInt(playerReturnStats["kick_ret_td"] || 0) * 6;
-                    homeTeamDstTotal += parseInt(playerReturnStats["punt_ret_td"] || 0) * 6;
-                }
             }
-            else if (player["team"] === gameStats["awayTeam"]) {
+            else if (player["team"] === awayTeam) {
                 // -- add points to away team total
                 awayTeamSackTotal += parseFloat(player["sacks"] || 0);
                 awayTeamDstTotal += parseInt(player["def_int"] || 0) * 2;
                 awayTeamDstTotal += parseInt(player["fumbles_rec"] || 0) * 2;
                 awayTeamDstTotal += parseInt(player["def_int_td"] || 0) * 6;
                 awayTeamDstTotal += parseInt(player["fumbles_rec_td"] || 0) * 6;
-
-                // -- grab any relevant player data from "returns" section
-                const playerReturnStats = gameStats["returns"].find(returnPlayer => returnPlayer["player"].trim() === player["player"].trim());
-                if (playerReturnStats) {
-                    awayTeamDstTotal += parseInt(playerReturnStats["kick_ret_td"] || 0) * 6;
-                    awayTeamDstTotal += parseInt(playerReturnStats["punt_ret_td"] || 0) * 6;
-                }
             }
             else {
                 console.log("***** this should never be the case *****");
-                console.log(`Player team: ${player["team"]}, Home Team: ${gameStats["homeTeam"]}, Away Team: ${gameStats["awayTeam"]}`);
+                console.log(`Player team: ${player["team"]}, Home Team: ${homeTeam}, Away Team: ${awayTeam}`);
             }
         });
 
-        homeTeamDstTotal += parseInt(homeTeamSackTotal);
-        awayTeamDstTotal += parseInt(awayTeamSackTotal);
+        // -- pulled these out separately to account for partial sacks addition (eg. sacks: 1.5 + 0.5 = 2)
+        homeTeamDstTotal += parseInt(homeTeamSackTotal) * 1;
+        awayTeamDstTotal += parseInt(awayTeamSackTotal) * 1;
+
+        // -- returns
+        gameStats["returns"].forEach(player => {
+            let draftKingsPoints = 0;
+
+            // -- grab any players that haven't already been picked up in the offensive stats
+            const playerReturnStats = gameStats["returns"].find(returnPlayer => returnPlayer["player"].trim() === player["player"].trim());
+            if (!playerReturnStats) {
+                draftKingsPoints += parseInt(playerReturnStats["kick_ret_td"] || 0) * 6;
+                draftKingsPoints += parseInt(playerReturnStats["punt_ret_td"] || 0) * 6;
+
+                // -- TEMPORARY - move into draft-kings file
+                // player["draftKingsPoints"] = draftKingsPoints;
+                gameStats["draftKings"].push({
+                    name: player["player"],
+                    team: player["team"],
+                    draftKingsPoints,
+                });
+            }
+
+            // -- all punt/kickoff return TDs count towards DST value
+            if (player["team"] === homeTeam) {
+                // -- add points to home team defense total
+                homeTeamDstTotal += parseInt(playerReturnStats["kick_ret_td"] || 0) * 6;
+                homeTeamDstTotal += parseInt(playerReturnStats["punt_ret_td"] || 0) * 6;
+            }
+            else if (player["team"] === awayTeam) {
+                // -- add points to away team defense total
+                awayTeamDstTotal += parseInt(playerReturnStats["kick_ret_td"] || 0) * 6;
+                awayTeamDstTotal += parseInt(playerReturnStats["punt_ret_td"] || 0) * 6;
+            }
+            else {
+                console.log("***** this should never be the case *****");
+                console.log(`Player team: ${player["team"]}, Home Team: ${homeTeam}, Away Team: ${awayTeam}`);
+            }
+        });
 
         /*
             (Points Allowed only includes points surrendered while defense/special teams is on the field, not something like a pick six)
@@ -445,23 +450,23 @@ const getGameData = async (gameUrl) => {
 
         // -- TEMPORARY - move into draft-kings file
         // gameStats["homeTeamDstTotal"] = {
-        //     team: gameStats["homeTeam"],
+        //     team: homeTeam,
         //     player: "DST",
         //     draftKingsPoints: homeTeamDstTotal
         // };
         // gameStats["awayTeamDstTotal"] = {
-        //     team: gameStats["awayTeam"],
+        //     team: awayTeam,
         //     player: "DST",
         //     draftKingsPoints: awayTeamDstTotal
         // };
         gameStats["draftKings"].push({
-            name: `${gameStats["homeTeam"]}-DST`,
-            team: gameStats["homeTeam"],
+            name: `${homeTeam}-DST`,
+            team: homeTeam,
             draftKingsPoints: homeTeamDstTotal,
         });
         gameStats["draftKings"].push({
-            name: `${gameStats["awayTeam"]}-DST`,
-            team: gameStats["awayTeam"],
+            name: `${awayTeam}-DST`,
+            team: awayTeam,
             draftKingsPoints: awayTeamDstTotal,
         });
 
@@ -480,7 +485,11 @@ const getGameData = async (gameUrl) => {
         // });
         // console.log(JSON.stringify(gameStats));
 
-        return gameStats;
+        return {
+            homeTeam,
+            awayTeam,
+            stats: gameStats
+        };
     }
     catch (ex) {
         console.log("Error occurred while fetching data");
