@@ -309,8 +309,21 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
         }
     }
 
-    // -- filter out anything over salary cap ($50,000)
-    const filteredPossibleTeams = possibleTeams.filter(team => team.totalSalary <= 50000);
+    // -- filter out invalid teams
+    const positions = ["flex1", "flex2", "flex3", "flex4", "flex5"];
+    const filteredPossibleTeams = possibleTeams
+        .filter(team => team.totalSalary <= 50000)  // -- filter out salary totals over $50,000
+        .filter(team => {   // -- filter out teams that don't have players from both teams
+            const captainTeamName = team.captain.team;
+            let hasSeparateTeams = false;
+            positions.forEach(position => {
+                if (team[position].team !== captainTeamName) {
+                    hasSeparateTeams = true;
+                }
+            });
+
+            return hasSeparateTeams;
+        });
 
     const t1 = performance.now()
     // -- DEBUG
