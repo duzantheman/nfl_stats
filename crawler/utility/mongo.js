@@ -190,6 +190,8 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
 
             results.forEach(result => {
                 const game = result.stats;
+                game["homeTeam"] = result.homeTeam;
+                game["awayTeam"] = result.awayTeam;
 
                 // -- total up relevant offensive data
                 game.offense.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
@@ -276,32 +278,27 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                     }
                 });
 
-                // -- TODO: total up relevant defenseive data (might be taken care of in next section)
-
                 // -- total up relevant DST data
                 if (game.homeTeam === teamA || game.homeTeam === teamB) {
                     if (!avgData[`${game.homeTeam}-DST`]) {
                         avgData[`${game.homeTeam}-DST`] = {
                             team: game.homeTeam,
-                            // totalDraftKingsPoints: parseInt(game["homeTeamDstTotal"].draftKingsPoints || 0)
                             totalDraftKingsPoints: parseInt(game["draftKings"]
-                                .find(player => player.name.includes(`${game.homeTeam}-DST`)).draftKingsPoints || 0)
+                                .find(player => player.name === `${game.homeTeam}-DST`).draftKingsPoints || 0)
                         }
                     } else {
-                        // avgData[`${game.homeTeam}-DST`].totalDraftKingsPoints += parseInt(game["homeTeamDstTotal"].draftKingsPoints || 0);
                         avgData[`${game.homeTeam}-DST`].totalDraftKingsPoints += parseInt(game["draftKings"]
                             .find(player => player.name.includes(`${game.homeTeam}-DST`)).draftKingsPoints || 0);
                     }
+
                 } else if (game.awayTeam === teamA || game.awayTeam === teamB) {
                     if (!avgData[`${game.awayTeam}-DST`]) {
                         avgData[`${game.awayTeam}-DST`] = {
                             team: game.awayTeam,
-                            // totalDraftKingsPoints: parseInt(game["awayTeamDstTotal"].draftKingsPoints || 0)
                             totalDraftKingsPoints: parseInt(game["draftKings"]
-                                .find(player => player.name.includes(`${game.awayTeam}-DST`)).draftKingsPoints || 0)
+                                .find(player => player.name === `${game.awayTeam}-DST`).draftKingsPoints || 0)
                         }
                     } else {
-                        // avgData[`${game.awayTeam}-DST`].totalDraftKingsPoints += parseInt(game["awayTeamDstTotal"].draftKingsPoints || 0);
                         avgData[`${game.awayTeam}-DST`].totalDraftKingsPoints += parseInt(game["draftKings"]
                             .find(player => player.name.includes(`${game.awayTeam}-DST`)).draftKingsPoints || 0);
                     }

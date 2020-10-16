@@ -56,7 +56,7 @@ const updateStats = async () => {
     }
 }
 
-const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
+const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers = [], removePlayers = []) => {
 
     console.log(`Generating team for week ${weekNumber} - ${teamA} vs ${teamB}...`);
 
@@ -64,8 +64,13 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     // *** this is where the prediction algorithm is that we need to work on ***
     const avgData = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
 
-    // -- calculate DraftKings points based on rules
-    const DKPlayers = getDraftKingsValue(avgData, numberOfWeeks);
+    // -- calculate DraftKings points based on rules and remove designated players
+    const DKPlayers = getDraftKingsValue(avgData, numberOfWeeks).map(player => {
+        return {
+            ...player,
+            ignorePlayer: removePlayers.includes(player.name)
+        };
+    });
 
     let playerSalaries = [];
     let homeTeam, awayTeam;
@@ -76,16 +81,31 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     // -- store data in mongo
     await storePlayerSalaries(playerSalaries, weekNumber, homeTeam, awayTeam);
 
-    // -- DEBUG
+    // -- TEMP for compaing out predicted value vs DK's FPPG
+    // playerSalaries.sort((a, b) => {
+    //     return a.dkPPG > b.dkPPG ? -1 : 1;
+    // })
     // console.log();
     // console.log(JSON.stringify(playerSalaries));
+    // const tempList = DKPlayers.sort((a, b) => {
+    //     return a.draftKingsPoints > b.draftKingsPoints ? -1 : 1;
+    // }).map(player => {
+    //     return {
+    //         name: player.name,
+    //         team: player.team,
+    //         draftKingsPoints: player.draftKingsPoints
+    //     }
+    // })
+    // console.log();
+    // console.log(JSON.stringify(tempList));
 
     console.log();
-
-    const topPredictedTeams = getTopTeams(DKPlayers, playerSalaries);
+    // const topPredictedTeams = getTopTeams(DKPlayers, playerSalaries);
+    // -- TEMP - to cut down on number of players looping through
+    const topPredictedTeams = getTopTeams(DKPlayers.slice(0, -3), playerSalaries);
 
     console.log();
-    console.log(JSON.stringify(topPredictedTeams));
+    console.log(JSON.stringify(topPredictedTeams.slice(0, 101)));
 };
 
 const storeSalaryData = async (week) => {
@@ -99,17 +119,80 @@ const storeSalaryData = async (week) => {
         // -- store data in mongo
         storePlayerSalaries(playerSalaries, week, homeTeam, awayTeam);
     }
-
-    // weeklyTeams.forEach(gameTeams => {
-    //     // -- retrieve DraftKings salary lineups
-    //     [playerSalaries, homeTeam, awayTeam] = await getPlayerSalaries(gameTeams[0], gameTeams[1]);
-
-    //     // -- store data in mongo
-    //     storePlayerSalaries(playerSalaries, week, homeTeam, awayTeam);
-    // });
 };
 
-const runAlgorithmTest = async () => {
+const runPlayerAlgorithmTest = async () => {
+    // 1) pull stored DraftKings salary (doing this because this will be the limiter in available data, not statisical data)
+
+    // -- retrieve stored player salaries from mongo
+    const storedDkGames = await retrieveAllPlayerSalaries();
+
+    // -- DEBUG
+    // console.log(JSON.stringify([storedDkGames[0]]));
+
+    // 2) pull stored statistical data based on year/week/teams from the DK salary data and merge
+
+    // -- loop through storedDKGames to grab statistics by year/week/teams
+    // for (const dkGame of storedDkGames) {
+    for (const dkGame of [storedDkGames[0]]) {  // -- DEBUG - temp for testing
+        // -- get actual stats for the particular game
+        const actualGameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
+
+        // -- get predicted stats for particular game
+        const numberOfWeeks = 3;
+        const avgStatData = await getAverageData(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
+        const predictedGameData = getDraftKingsValue(avgStatData, numberOfWeeks);
+
+        let dkPlayers = actualGameData.stats.draftKings.map(actualPlayer => {
+            const matchingPlayer = predictedGameData.find(predictedPlayer => predictedPlayer.name === actualPlayer.name);
+            if (matchingPlayer) {
+                return {
+                    name: actualPlayer.name,
+                    team: actualPlayer.team,
+                    actualPoints: actualPlayer.draftKingsPoints,
+                    predictedPoints: matchingPlayer.draftKingsPoints
+                }
+            } else {
+                console.log(`***** no matching player for: ${actualPlayer.name}`);
+                return null;
+            }
+        }).filter(player => !!player);
+
+        // -- add actual and predicted position values
+        dkPlayers = [...dkPlayers].sort((a, b) => {
+            return a.actualPoints > b.actualPoints ? -1 : 1;
+        }).map((player, index) => {
+            player["actualPosition"] = index + 1;
+            return player;
+        });
+        dkPlayers = [...dkPlayers].sort((a, b) => {
+            return a.predictedPoints > b.predictedPoints ? -1 : 1;
+        }).map((player, index) => {
+            player["predictedPosition"] = index + 1;
+            return player;
+        });
+
+        const actualSorted = [...dkPlayers].sort((a, b) => {
+            return a.actualPoints > b.actualPoints ? -1 : 1;
+        });
+        const predictedSorted = [...dkPlayers].sort((a, b) => {
+            return a.predictedPoints > b.predictedPoints ? -1 : 1;
+        });
+
+
+        // -- DEBUG
+        console.log();
+        console.log(`Actual Points: ${JSON.stringify(actualSorted)}`);
+        console.log();
+        console.log(`Predicted Points: ${JSON.stringify(predictedSorted)}`);
+    }
+
+    // 4) display top 10? 20? 100? 
+
+    // 5) now repeat the process using generateTeam() call to see what we "predicted" and compare the results
+};
+
+const runTeamAlgorithmTest = async () => {
     // 1) pull stored DraftKings salary (doing this because this will be the limiter in available data, not statisical data)
 
     // -- retrieve stored player salaries from mongo
@@ -137,10 +220,64 @@ const runAlgorithmTest = async () => {
         const isActualData = true;
         const topActualTeams = getTopTeams(gameData.stats.draftKings, dkGame.playerSalaries, isActualData);
 
+        // -- get predicted stats for particular game
+        const numberOfWeeks = 3;
+        const avgStatData = await getAverageData(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
+        const DKPlayers = getDraftKingsValue(avgStatData, numberOfWeeks);
+        const topPredictedTeams = getTopTeams(DKPlayers, dkGame.playerSalaries);
+
         // -- DEBUG
         console.log();
-        console.log(JSON.stringify(topActualTeams));
+        console.log(`Top actual teams: ${JSON.stringify(topActualTeams.slice(0, 1))}`);
+        console.log();
+        console.log(`Top predicted teams: ${JSON.stringify(topPredictedTeams.slice(0, 11))}`);
 
+        // how far down to we have to go to match the team?
+        let predictedTeamPosition = -1;
+        for (let i = 0; i < topPredictedTeams.length; i++) {
+            // if (topPredictedTeams[i].totalDraftKingsPoints >= topActualTeams[0].totalDraftKingsPoints) {
+            //     predictedTeamPosition = i;
+            //     break;
+            // }
+
+            if (predictedTeamPosition > -1) break;
+            if (topPredictedTeams[i].captain.player === topActualTeams[0].captain.player) {
+                let playersFound = {
+                    "flex1": false,
+                    "flex2": false,
+                    "flex3": false,
+                    "flex4": false,
+                    "flex5": false,
+                }
+                for (let j = 1; j <= 5; j++) {
+                    if (!topPredictedTeams[i][`flex${j}`]) {
+                        console.log(`Missing flex player ${j} in team: ${JSON.stringify(topPredictedTeams[i])}`);
+                        break;
+                    }
+                    for (let k = 1; k <= 5; k++) {
+                        if (!topActualTeams[0][`flex${k}`]) {
+                            console.log(`Missing flex player ${k} in team: ${JSON.stringify(topActualTeams[0])}`);
+                            break;
+                        }
+                        if (topPredictedTeams[i][`flex${j}`].player === topActualTeams[0][`flex${k}`].player) {
+                            playersFound[`flex${j}`] = true;
+                            break;
+                        }
+                    }
+                    if (!playersFound[`flex${j}`]) {
+                        // -- player not found at all, jump to next team
+                        break;
+                    }
+                }
+
+                if (playersFound["flex1"] && playersFound["flex2"] && playersFound["flex3"] && playersFound["flex4"] && playersFound["flex5"]) {
+                    predictedTeamPosition = i;
+                    break;
+                }
+            }
+        }
+        console.log();
+        console.log(`Position: ${predictedTeamPosition} out of ${topPredictedTeams.length}`);
     }
 
     // 4) display top 10? 20? 100? 
@@ -173,18 +310,28 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
                 );
         });
 
-        if (playerSalary && !playerSalary.injured) {
+        if (playerSalary && !playerSalary.injured && !player.ignorePlayer) {
+            // -- player good to go
             player["position"] = playerSalary.position;
             player["salary"] = playerSalary.salary;
             player["dollarsPerPoint"] = playerSalary.salary / player["draftKingsPoints"];
             player["pointsPerDollar"] = player["draftKingsPoints"] / playerSalary.salary;
         } else if (playerSalary && playerSalary.injured) {
+            // -- player injured
             console.log(`Injured: ${name} from ${team}`);
 
             player["salary"] = -1;
             player["dollarsPerPoint"] = -1;
             player["pointsPerDollar"] = -1;
+        } else if (playerSalary && player.ignorePlayer) {
+            // -- ignoring player from command args
+            console.log(`Manually ignore: ${name} from ${team}`);
+
+            player["salary"] = -1;
+            player["dollarsPerPoint"] = -1;
+            player["pointsPerDollar"] = -1;
         } else {
+            // -- player doesn't have a matching salary
             console.log(`No matching salary for ${name} from ${team}`);
 
             player["salary"] = -1;
@@ -219,11 +366,12 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
         });
 
         if (!playerFound) {
+            // -- player doesn't have matching statistics
             console.log(`No matching statistics for ${playerSalName} from ${playerSal.team}`);
         }
     });
 
-    // -- filter out players we dont have values for
+    // -- filter out players we dont have values for, are injured, or are just ignoring
     const filteredPlayers = playerStats.filter(player => player["salary"] !== -1);
 
     // -- sort by average DK points
@@ -337,14 +485,14 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
         return a.totalDraftKingsPoints > b.totalDraftKingsPoints ? -1 : 1;
     });
 
-    const displayedTeamsCount = 100;
-    const topTeams = filteredPossibleTeams.slice(0, displayedTeamsCount + 1);
+    // const displayedTeamsCount = 100;
+    // const topTeams = filteredPossibleTeams.slice(0, displayedTeamsCount + 1);
 
     // console.log();
     // console.log(`Top ${displayedTeamsCount} teams by predicted points...`);
     // console.log(JSON.stringify(topTeams));
 
-    return topTeams;
+    return filteredPossibleTeams;
 }
 
 const run = async () => {
@@ -356,10 +504,14 @@ const run = async () => {
 
             updateStats();
             break;
-        case '--generate-team':   // `node index.js --generate-team {weekNumber} {teamA} {teamB}` (assuming current year)
+        case '--generate-team':   // `node index.js --generate-team {weekNumber} {teamA} {teamB} [{playersToKeep} {playersToRemove}]` (assuming current year)
             console.log("Generating DraftKings teams...");
 
-            const [weekNumber, teamA, teamB] = args.slice(1);
+            const [weekNumber, teamA, teamB, playersToKeepStr, playersToRemoveStr] = args.slice(1);
+            const playersToKeep = playersToKeepStr && playersToKeepStr !== " " ?
+                playersToKeepStr.split(",") : [];
+            const playersToRemove = playersToRemoveStr ?
+                playersToRemoveStr.split(",") : [];
 
             if (teamA === teamB) {
                 console.log("Teams need to be different.");
@@ -368,7 +520,7 @@ const run = async () => {
 
             const numberOfWeeks = 3;
 
-            generateTeam(parseInt(weekNumber), numberOfWeeks, teamA.toUpperCase(), teamB.toUpperCase());
+            generateTeam(parseInt(weekNumber), numberOfWeeks, teamA.toUpperCase(), teamB.toUpperCase(), playersToKeep, playersToRemove);
             break;
         case '--team-abbrv':    // `node index.js --team-abbrv`
             console.log("Team abbreviations...");
@@ -395,10 +547,15 @@ const run = async () => {
 
             storeSalaryData(parseInt(week));
             break;
-        case '--run-test': // `node index.js --run-test`
-            console.log("Running algorithm test on previously stored data...");
+        case '--run-player-test': // `node index.js --run-test`
+            console.log("Running player algorithm test on previously stored data...");
 
-            runAlgorithmTest();
+            runPlayerAlgorithmTest();
+            break;
+        case '--run-team-test': // `node index.js --run-test`
+            console.log("Running team algorithm test on previously stored data...");
+
+            runTeamAlgorithmTest();
             break;
         case '--help':  // `node index.js --help`
             console.log("Options...");
@@ -406,8 +563,9 @@ const run = async () => {
             console.log("\t--team-abbrv\n\t\t=> list valid NFL team name abbreviations");
             console.log("\t--update-stats\n\t\t=> grab latest stats from pro-footbal-reference.com and store stats in DB");
             console.log("\t--store-salary-data {week}\n\t\t=> retrieve current salary lineups and store stats in DB");
-            console.log("\t--generate-team {weekNumber} {teamA} {teamB}\n\t\t=> generate DraftKings lineups based on predicted stats");
-            console.log("\t--run-test\n\t\t=> run algorithm test on historical data");
+            console.log("\t--generate-team {weekNumber} {teamA} {teamB} [{playersToKeep} {playersToRemove}]\n\t\t=> generate DraftKings lineups based on predicted stats");
+            console.log("\t--run-player-test\n\t\t=> run algorithm test for player points prediction on historical data");
+            console.log("\t--run-team-test\n\t\t=> run algorithm test for DraftKings team prediction on historical data");
             break;
         default:
             console.log('Invalid args. Run `node index.js --help` for valid command list.');

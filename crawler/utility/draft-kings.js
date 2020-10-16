@@ -109,20 +109,23 @@ const getPlayerSalaries = async (teamA, teamB) => {
         const dkPlayersList = [];
         playersResponse.data.playerList.forEach(dkPlayer => {
             const teamAbbrv = convertTeamAbbreviation(teamInfo[dkPlayer.tid]);
-            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D") {
+            // if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D") {
+            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D" && dkPlayer.i !== "Q") {
                 if (dkPlayer.pn === "DST") {
                     dkPlayersList.push({
                         "name": `${teamAbbrv}-${dkPlayer.pn}`,
                         "team": teamAbbrv,
                         "position": dkPlayer.pn,
-                        "salary": dkPlayer.s
+                        "salary": dkPlayer.s,
+                        "dkPPG": parseFloat(dkPlayer.ppg || "0")
                     });
                 } else {
                     dkPlayersList.push({
                         "name": `${dkPlayer.fn} ${dkPlayer.ln}`,
                         "team": teamAbbrv,
                         "position": dkPlayer.pn,
-                        "salary": dkPlayer.s
+                        "salary": dkPlayer.s,
+                        "dkPPG": parseFloat(dkPlayer.ppg || "0")
                     });
                 }
             } else {
@@ -351,7 +354,7 @@ const getDraftKingsValue_old = (averageData) => {
 //     "MIA": "MIA",
 //     "ATL": "ATL",
 //     "NYJ": "NYJ",
-//     "DET": "Detriot Lions",
+//     "DET": "DET",
 //     "ARI": "ARI",
 //     "DAL": "DAL",
 //     "KC": "KAN",
@@ -364,7 +367,6 @@ const DK_TEAM_ABBRV_CONV = {
     "GB": "GNB",
     "LV": "LVR",
     "TB": "TAM",
-    "DET": "Detriot Lions",
     "KC": "KAN"
 };
 const convertTeamAbbreviation = (dkAbbrv) => {
