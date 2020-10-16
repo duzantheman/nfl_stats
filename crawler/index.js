@@ -100,9 +100,9 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
     // console.log(JSON.stringify(tempList));
 
     console.log();
-    // const topPredictedTeams = getTopTeams(DKPlayers, playerSalaries);
+    const topPredictedTeams = getTopTeams(DKPlayers, playerSalaries);
     // -- TEMP - to cut down on number of players looping through
-    const topPredictedTeams = getTopTeams(DKPlayers.slice(0, -3), playerSalaries);
+    // const topPredictedTeams = getTopTeams(DKPlayers.slice(0, -3), playerSalaries);
 
     console.log();
     console.log(JSON.stringify(topPredictedTeams.slice(0, 101)));
