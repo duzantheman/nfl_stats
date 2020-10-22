@@ -143,14 +143,15 @@ const getStoredGameData = async (year, week, homeTeam, awayTeam) => {
 }
 
 // -- this is where the prediction algorithm is that we need to work on
-const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
+const getRelevantGamesData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     const uri = `mongodb+srv://${user}:${pw}@${clusterName}/${dbName}?retryWrites=true&w=majority`;
     const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
     let year = new Date().getFullYear();
     let week = weekNumber;
 
-    const avgData = [];
+    // const avgData = [];
+    const weeks = [];
     try {
         await client.connect();
 
@@ -162,10 +163,6 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                 week = 17;  // -- should we reset to 17 (end of regular season) or reset in the post season (18-21)???
             }
             console.log(`Year: ${year}, Week: ${week}`);
-
-            // -- get stats filtered by week
-            // const result = await client.db(dbName).collection("weekly_stats")
-            //     .find({ $and: [{ "week": week }, { "year": year }] }).toArray();
 
             const results = await client.db(dbName).collection("weekly_stats")
                 .find({
@@ -185,145 +182,149 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
 
             if (!results || results.length === 0) {
                 console.log(`Data for ${year} - Week ${week} - ${teamA} vs ${teamB} not found in database.`);
-                return [];
+                weeks.push({
+                    week,
+                    year,
+                    games: []
+                });
+            } else {
+                weeks.push({
+                    week,
+                    year,
+                    games: results
+                });
+
+                // results.forEach(result => {
+                //     const game = result.stats;
+                //     game["homeTeam"] = result.homeTeam;
+                //     game["awayTeam"] = result.awayTeam;
+
+                //     // -- total up relevant offensive data
+                //     game.offense.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
+
+                //         // -- DEBUG
+                //         // console.log(player.player);
+
+                //         if (!avgData[player.player]) {
+                //             avgData[player.player] = {
+                //                 team: player.team,
+                //                 totalPassingTD: parseInt(player.pass_td || 0),
+                //                 totalPassingYards: parseInt(player.pass_yds || 0),
+                //                 totalRushingTD: parseInt(player.rush_td || 0),
+                //                 totalRushingYards: parseInt(player.rush_yds || 0),
+                //                 totalReceivingTD: parseInt(player.rec_td || 0),
+                //                 totalReceivingYards: parseInt(player.rec_yds || 0),
+                //                 totalReceptions: parseInt(player.rec || 0),
+                //                 totalInterceptions: parseInt(player.pass_int || 0),
+                //                 totalFumblesLost: parseInt(player.fumbles_lost || 0),
+                //                 weeksPlayed: 1,
+                //                 weeks: [`${year} - Week ${week}`]
+                //             }
+                //         } else {
+                //             avgData[player.player].totalPassingTD += parseInt(player.pass_td || 0);
+                //             avgData[player.player].totalPassingYards += parseInt(player.pass_yds || 0);
+                //             avgData[player.player].totalRushingTD += parseInt(player.rush_td || 0);
+                //             avgData[player.player].totalRushingYards += parseInt(player.rush_yds || 0);
+                //             avgData[player.player].totalReceivingTD += parseInt(player.rec_td || 0);
+                //             avgData[player.player].totalReceivingYards += parseInt(player.rec_yds || 0);
+                //             avgData[player.player].totalReceptions += parseInt(player.rec || 0);
+                //             avgData[player.player].totalInterceptions += parseInt(player.pass_int || 0);
+                //             avgData[player.player].totalFumblesLost += parseInt(player.fumbles_lost || 0);
+
+                //             const weeksString = `${year} - Week ${week}`;
+                //             if (!avgData[player.player]["weeks"].includes(weeksString)) {
+                //                 avgData[player.player].weeksPlayed += 1;
+                //                 avgData[player.player]["weeks"].push(weeksString);
+                //             }
+                //         }
+                //     });
+
+                //     // -- total up relevant return data
+                //     game.returns.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
+                //         if (!avgData[player.player]) {
+                //             avgData[player.player] = {
+                //                 team: player.team,
+                //                 totalKickReturnTD: parseInt(player.kick_ret_td || 0) + parseInt(player.punt_ret_td || 0),
+                //                 weeksPlayed: 1,
+                //                 weeks: [`${year} - Week ${week}`]
+                //             }
+                //         } else {
+                //             avgData[player.player].totalKickReturnTD = (avgData[player.player].totalKickReturnTD || 0) +
+                //                 parseInt(player.kick_ret_td || 0) + parseInt(player.punt_ret_td || 0);
+
+                //             const weeksString = `${year} - Week ${week}`;
+                //             if (!avgData[player.player]["weeks"].includes(weeksString)) {
+                //                 avgData[player.player].weeksPlayed += 1;
+                //                 avgData[player.player]["weeks"].push(weeksString);
+                //             }
+                //         }
+                //     });
+
+                //     // -- total up relevant kicking data
+                //     game.kicking.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
+                //         if (!avgData[player.player]) {
+                //             avgData[player.player] = {
+                //                 team: player.team,
+                //                 totalExtraPoints: parseInt(player.xpm || 0),
+                //                 totalFieldGoals: parseInt(player.fgm || 0),
+                //                 weeksPlayed: 1,
+                //                 weeks: [`${year} - Week ${week}`]
+                //             }
+                //         } else {
+                //             avgData[player.player].totalExtraPoints = (avgData[player.player].totalExtraPoints || 0) +
+                //                 parseInt(player.xpm || 0);
+                //             avgData[player.player].totalFieldGoals = (avgData[player.player].totalFieldGoals || 0) +
+                //                 parseInt(player.fgm || 0);
+
+                //             const weeksString = `${year} - Week ${week}`;
+                //             if (!avgData[player.player]["weeks"].includes(weeksString)) {
+                //                 avgData[player.player].weeksPlayed += 1;
+                //                 avgData[player.player]["weeks"].push(weeksString);
+                //             }
+                //         }
+                //     });
+
+                //     // -- total up relevant DST data
+                //     if (game.homeTeam === teamA || game.homeTeam === teamB) {
+                //         if (!avgData[`${game.homeTeam}-DST`]) {
+                //             avgData[`${game.homeTeam}-DST`] = {
+                //                 team: game.homeTeam,
+                //                 totalDraftKingsPoints: parseInt(game["draftKings"]
+                //                     .find(player => player.name === `${game.homeTeam}-DST`).draftKingsPoints || 0)
+                //             }
+                //         } else {
+                //             avgData[`${game.homeTeam}-DST`].totalDraftKingsPoints += parseInt(game["draftKings"]
+                //                 .find(player => player.name.includes(`${game.homeTeam}-DST`)).draftKingsPoints || 0);
+                //         }
+
+                //     } else if (game.awayTeam === teamA || game.awayTeam === teamB) {
+                //         if (!avgData[`${game.awayTeam}-DST`]) {
+                //             avgData[`${game.awayTeam}-DST`] = {
+                //                 team: game.awayTeam,
+                //                 totalDraftKingsPoints: parseInt(game["draftKings"]
+                //                     .find(player => player.name === `${game.awayTeam}-DST`).draftKingsPoints || 0)
+                //             }
+                //         } else {
+                //             avgData[`${game.awayTeam}-DST`].totalDraftKingsPoints += parseInt(game["draftKings"]
+                //                 .find(player => player.name.includes(`${game.awayTeam}-DST`)).draftKingsPoints || 0);
+                //         }
+                //     }
+                // });
             }
-
-            results.forEach(result => {
-                const game = result.stats;
-                game["homeTeam"] = result.homeTeam;
-                game["awayTeam"] = result.awayTeam;
-
-                // -- total up relevant offensive data
-                game.offense.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
-
-                    // -- DEBUG
-                    // console.log(player.player);
-
-                    if (!avgData[player.player]) {
-                        avgData[player.player] = {
-                            team: player.team,
-                            totalPassingTD: parseInt(player.pass_td || 0),
-                            totalPassingYards: parseInt(player.pass_yds || 0),
-                            totalRushingTD: parseInt(player.rush_td || 0),
-                            totalRushingYards: parseInt(player.rush_yds || 0),
-                            totalReceivingTD: parseInt(player.rec_td || 0),
-                            totalReceivingYards: parseInt(player.rec_yds || 0),
-                            totalReceptions: parseInt(player.rec || 0),
-                            totalInterceptions: parseInt(player.pass_int || 0),
-                            totalFumblesLost: parseInt(player.fumbles_lost || 0),
-                            weeksPlayed: 1,
-                            weeks: [`${year} - Week ${week}`]
-                        }
-                    } else {
-                        avgData[player.player].totalPassingTD += parseInt(player.pass_td || 0);
-                        avgData[player.player].totalPassingYards += parseInt(player.pass_yds || 0);
-                        avgData[player.player].totalRushingTD += parseInt(player.rush_td || 0);
-                        avgData[player.player].totalRushingYards += parseInt(player.rush_yds || 0);
-                        avgData[player.player].totalReceivingTD += parseInt(player.rec_td || 0);
-                        avgData[player.player].totalReceivingYards += parseInt(player.rec_yds || 0);
-                        avgData[player.player].totalReceptions += parseInt(player.rec || 0);
-                        avgData[player.player].totalInterceptions += parseInt(player.pass_int || 0);
-                        avgData[player.player].totalFumblesLost += parseInt(player.fumbles_lost || 0);
-
-                        const weeksString = `${year} - Week ${week}`;
-                        if (!avgData[player.player]["weeks"].includes(weeksString)) {
-                            avgData[player.player].weeksPlayed += 1;
-                            avgData[player.player]["weeks"].push(weeksString);
-                        }
-                    }
-                });
-
-                // -- total up relevant return data
-                game.returns.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
-                    if (!avgData[player.player]) {
-                        avgData[player.player] = {
-                            team: player.team,
-                            totalKickReturnTD: parseInt(player.kick_ret_td || 0) + parseInt(player.punt_ret_td || 0),
-                            weeksPlayed: 1,
-                            weeks: [`${year} - Week ${week}`]
-                        }
-                    } else {
-                        avgData[player.player].totalKickReturnTD = (avgData[player.player].totalKickReturnTD || 0) +
-                            parseInt(player.kick_ret_td || 0) + parseInt(player.punt_ret_td || 0);
-
-                        const weeksString = `${year} - Week ${week}`;
-                        if (!avgData[player.player]["weeks"].includes(weeksString)) {
-                            avgData[player.player].weeksPlayed += 1;
-                            avgData[player.player]["weeks"].push(weeksString);
-                        }
-                    }
-                });
-
-                // -- total up relevant kicking data
-                game.kicking.filter(player => player.team === teamA || player.team === teamB).forEach(player => {
-                    if (!avgData[player.player]) {
-                        avgData[player.player] = {
-                            team: player.team,
-                            totalExtraPoints: parseInt(player.xpm || 0),
-                            totalFieldGoals: parseInt(player.fgm || 0),
-                            weeksPlayed: 1,
-                            weeks: [`${year} - Week ${week}`]
-                        }
-                    } else {
-                        avgData[player.player].totalExtraPoints = (avgData[player.player].totalExtraPoints || 0) +
-                            parseInt(player.xpm || 0);
-                        avgData[player.player].totalFieldGoals = (avgData[player.player].totalFieldGoals || 0) +
-                            parseInt(player.fgm || 0);
-
-                        const weeksString = `${year} - Week ${week}`;
-                        if (!avgData[player.player]["weeks"].includes(weeksString)) {
-                            avgData[player.player].weeksPlayed += 1;
-                            avgData[player.player]["weeks"].push(weeksString);
-                        }
-                    }
-                });
-
-                // -- total up relevant DST data
-                if (game.homeTeam === teamA || game.homeTeam === teamB) {
-                    if (!avgData[`${game.homeTeam}-DST`]) {
-                        avgData[`${game.homeTeam}-DST`] = {
-                            team: game.homeTeam,
-                            totalDraftKingsPoints: parseInt(game["draftKings"]
-                                .find(player => player.name === `${game.homeTeam}-DST`).draftKingsPoints || 0)
-                        }
-                    } else {
-                        avgData[`${game.homeTeam}-DST`].totalDraftKingsPoints += parseInt(game["draftKings"]
-                            .find(player => player.name.includes(`${game.homeTeam}-DST`)).draftKingsPoints || 0);
-                    }
-
-                } else if (game.awayTeam === teamA || game.awayTeam === teamB) {
-                    if (!avgData[`${game.awayTeam}-DST`]) {
-                        avgData[`${game.awayTeam}-DST`] = {
-                            team: game.awayTeam,
-                            totalDraftKingsPoints: parseInt(game["draftKings"]
-                                .find(player => player.name === `${game.awayTeam}-DST`).draftKingsPoints || 0)
-                        }
-                    } else {
-                        avgData[`${game.awayTeam}-DST`].totalDraftKingsPoints += parseInt(game["draftKings"]
-                            .find(player => player.name.includes(`${game.awayTeam}-DST`)).draftKingsPoints || 0);
-                    }
-                }
-            });
-
-            // // -- calculate weekly average
-            // Object.keys(avgData).forEach(player => {
-            //     Object.keys(avgData[player]).filter(key => key !== "team" && !key.includes("weekAvg")).forEach(key => {
-            //         const newKey = `${i}-weekAvg${key.split("total")[1]}`;
-            //         avgData[player][newKey] = avgData[player][key] / (i * 1.0);
-            //     });
-            // });
         }
 
-        // -- calculate weekly average
-        Object.keys(avgData).forEach(player => {
-            Object.keys(avgData[player]).filter(key => key !== "team" && !key.includes("weeks")).forEach(key => {
-                const newKey = `avg${key.split("total")[1]}`;
-                const weeksPlayed = player.includes("-DST") ? numberOfWeeks : avgData[player].weeksPlayed;
-                avgData[player][newKey] = avgData[player][key] / (weeksPlayed * 1.0);
-            });
-        });
+        // // -- calculate weekly average
+        // Object.keys(avgData).forEach(player => {
+        //     Object.keys(avgData[player]).filter(key => key !== "team" && !key.includes("weeks")).forEach(key => {
+        //         const newKey = `avg${key.split("total")[1]}`;
+        //         const weeksPlayed = player.includes("-DST") ? numberOfWeeks : avgData[player].weeksPlayed;
+        //         avgData[player][newKey] = avgData[player][key] / (weeksPlayed * 1.0);
+        //     });
+        // });
 
-        return avgData;
+        // return avgData;
+
+        return weeks;
 
     } catch (e) {
         console.error(e);
@@ -418,7 +419,7 @@ module.exports.getLatestStatWeek = getLatestStatWeek;
 module.exports.writeLatestStatWeek = writeLatestStatWeek;
 module.exports.writeStats = writeStats;
 module.exports.getStoredGameData = getStoredGameData;
-module.exports.getAverageData = getAverageData;
+module.exports.getRelevantGamesData = getRelevantGamesData;
 module.exports.storePlayerSalaries = storePlayerSalaries;
 module.exports.retrievePlayerSalaries = retrievePlayerSalaries;
 module.exports.retrieveAllPlayerSalaries = retrieveAllPlayerSalaries;
