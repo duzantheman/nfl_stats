@@ -21,6 +21,8 @@ const {
     getCurrentGames
 } = require("./utility/draft-kings");
 
+const VERBOSE = false;
+
 // const testSalaries = require("./game-salaries.json");
 
 /*
@@ -64,7 +66,8 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
     // *** this is where the prediction algorithm is that we need to work on ***
     let DKPlayers = [];
     if (!useOldWay) {
-        DKPlayers = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
+        // DKPlayers = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
+        DKPlayers = await getAverageData(weekNumber, teamA, teamB);
         DKPlayers = DKPlayers.map(player => {
             return {
                 ...player,
@@ -118,7 +121,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
     // const topPredictedTeams = getTopTeams(DKPlayers.slice(0, -10), playerSalaries);
 
     console.log();
-    console.log(JSON.stringify(topPredictedTeams.slice(0, 11)));
+    console.log(JSON.stringify(topPredictedTeams.slice(0, 101)));
 };
 
 const storeSalaryData = async (week) => {
@@ -147,14 +150,21 @@ const runPlayerAlgorithmTest = async () => {
 
     // -- loop through storedDKGames to grab statistics by year/week/teams
     // for (const dkGame of storedDkGames) {
-    for (const dkGame of [storedDkGames[0]]) {  // -- DEBUG - temp for testing
+    for (const dkGame of [storedDkGames[storedDkGames.length - 1]]) {  // -- DEBUG - temp for testing
         // -- get actual stats for the particular game
         const actualGameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
 
         // -- get predicted stats for particular game
         const numberOfWeeks = 3;
-        const avgStatData = await getAverageDataOld(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
-        const predictedGameData = getDraftKingsValue(avgStatData, numberOfWeeks);
+        const useOldWay = false;
+        let predictedGameData = [];
+        if (useOldWay) {
+            const avgStatData = await getAverageDataOld(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
+            predictedGameData = getDraftKingsValue(avgStatData, numberOfWeeks);
+        } else {
+            // predictedGameData = await getAverageData(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
+            predictedGameData = await getAverageData(dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
+        }
 
         let dkPlayers = actualGameData.stats.draftKings.map(actualPlayer => {
             const matchingPlayer = predictedGameData.find(predictedPlayer => predictedPlayer.name === actualPlayer.name);
@@ -193,11 +203,13 @@ const runPlayerAlgorithmTest = async () => {
         });
 
 
-        // -- DEBUG
-        console.log();
-        console.log(`Actual Points: ${JSON.stringify(actualSorted)}`);
-        console.log();
-        console.log(`Predicted Points: ${JSON.stringify(predictedSorted)}`);
+        if (VERBOSE) {
+            // -- DEBUG
+            console.log();
+            console.log(`Actual Points: ${JSON.stringify(actualSorted)}`);
+            console.log();
+            console.log(`Predicted Points: ${JSON.stringify(predictedSorted)}`);
+        }
     }
 
     // 4) display top 10? 20? 100? 
@@ -217,10 +229,16 @@ const runTeamAlgorithmTest = async () => {
     // 2) pull stored statistical data based on year/week/teams from the DK salary data and merge
 
     // -- loop through storedDKGames to grab statistics by year/week/teams
+    const positions = [];
     // for (const dkGame of storedDkGames) {
-    for (const dkGame of [storedDkGames[0]]) {  // -- DEBUG - temp for testing
+    for (const dkGame of storedDkGames.slice(1, 2)) {  // -- DEBUG - temp for testing
+        console.log(`Game: ${dkGame.year} - Week ${dkGame.week}, ${dkGame.homeTeam} vs ${dkGame.awayTeam}`);
         // -- get actual stats for the particular game
         const gameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
+        if (!gameData) {
+            console.log(`No game data found, skipping...`);
+            continue;
+        }
 
         // -- DEBUG
         // console.log(JSON.stringify(gameData));
@@ -235,15 +253,24 @@ const runTeamAlgorithmTest = async () => {
 
         // -- get predicted stats for particular game
         const numberOfWeeks = 3;
-        const avgStatData = await getAverageDataOld(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
-        const DKPlayers = getDraftKingsValue(avgStatData, numberOfWeeks);
+        const useOldWay = false;
+        let DKPlayers = [];
+        if (useOldWay) {
+            const avgStatData = await getAverageDataOld(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
+            DKPlayers = getDraftKingsValue(avgStatData, numberOfWeeks);
+        } else {
+            // DKPlayers = await getAverageData(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
+            DKPlayers = await getAverageData(dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
+        }
         const topPredictedTeams = getTopTeams(DKPlayers, dkGame.playerSalaries);
 
-        // -- DEBUG
-        console.log();
-        console.log(`Top actual teams: ${JSON.stringify(topActualTeams.slice(0, 1))}`);
-        console.log();
-        console.log(`Top predicted teams: ${JSON.stringify(topPredictedTeams.slice(0, 11))}`);
+        if (VERBOSE) {
+            // -- DEBUG
+            console.log();
+            console.log(`Top actual teams: ${JSON.stringify(topActualTeams.slice(0, 1))}`);
+            console.log();
+            console.log(`Top predicted teams: ${JSON.stringify(topPredictedTeams.filter(team => team.captain.player === topActualTeams[0].captain.player).slice(0, 101))}`);
+        }
 
         // how far down to we have to go to match the team?
         let predictedTeamPosition = -1;
@@ -289,8 +316,12 @@ const runTeamAlgorithmTest = async () => {
                 }
             }
         }
-        console.log();
-        console.log(`Position: ${predictedTeamPosition} out of ${topPredictedTeams.length}`);
+        positions.push([predictedTeamPosition, topPredictedTeams.length]);
+    }
+
+    console.log();
+    for (const [position, length] of positions) {
+        console.log(`Position: ${position} out of ${length}`);
     }
 
     // 4) display top 10? 20? 100? 
@@ -298,7 +329,9 @@ const runTeamAlgorithmTest = async () => {
     // 5) now repeat the process using generateTeam() call to see what we "predicted" and compare the results
 };
 
-const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
+// const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
+const getAverageData = async (weekNumber, teamA, teamB) => {
+    const numberOfWeeks = 17;
     const weeks = await getRelevantGamesData(weekNumber, numberOfWeeks, teamA, teamB);
 
     const averagePlayerData = {};
@@ -316,7 +349,7 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
                     if (!averagePlayerData[draftKingsPlayer.name]) {
                         averagePlayerData[draftKingsPlayer.name] = {
                             name: draftKingsPlayer.name,
-                            team: game.homeTeam,
+                            team: draftKingsPlayer.team,
                             weeklyStats: [{
                                 week: game.week,
                                 year: game.year,
@@ -455,8 +488,6 @@ const getAverageData = async (weekNumber, numberOfWeeks, teamA, teamB) => {
     // playerList.sort((a, b) => b.avgDraftKingsPoints - a.avgDraftKingsPoints);
     // console.log(JSON.stringify(playerList));
 
-    // -- change list to object (expected return type)
-    // return playerList.reduce((playersObj, player) => ({ ...playersObj, [player.name]: player }), {});
     return playerList.map(player => {
         return {
             name: player.name,
@@ -719,21 +750,27 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
             player["pointsPerDollar"] = player["draftKingsPoints"] / playerSalary.salary;
         } else if (playerSalary && playerSalary.injured) {
             // -- player injured
-            console.log(`Injured: ${name} from ${team}`);
+            if (VERBOSE) {
+                console.log(`Injured: ${name} from ${team}`);
+            }
 
             player["salary"] = -1;
             player["dollarsPerPoint"] = -1;
             player["pointsPerDollar"] = -1;
         } else if (playerSalary && player.ignorePlayer) {
             // -- ignoring player from command args
-            console.log(`Manually ignore: ${name} from ${team}`);
+            if (VERBOSE) {
+                console.log(`Manually ignore: ${name} from ${team}`);
+            }
 
             player["salary"] = -1;
             player["dollarsPerPoint"] = -1;
             player["pointsPerDollar"] = -1;
         } else {
             // -- player doesn't have a matching salary
-            console.log(`No matching salary for ${name} from ${team}`);
+            if (VERBOSE) {
+                console.log(`No matching salary for ${name} from ${team}`);
+            }
 
             player["salary"] = -1;
             player["dollarsPerPoint"] = -1;
@@ -768,7 +805,9 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
 
         if (!playerFound) {
             // -- player doesn't have matching statistics
-            console.log(`No matching statistics for ${playerSalName} from ${playerSal.team}`);
+            if (VERBOSE) {
+                console.log(`No matching statistics for ${playerSalName} from ${playerSal.team}`);
+            }
         }
     });
 
@@ -874,12 +913,14 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
             return hasSeparateTeams;
         });
 
-    const t1 = performance.now()
-    // -- DEBUG
-    console.log();
-    console.log("Call to build teams took " + (t1 - t0) + " milliseconds.");
-    console.log(`Possible unflitered combinations: ${possibleTeams.length}`);
-    console.log(`Possible flitered combinations: ${filteredPossibleTeams.length}`);
+    if (VERBOSE) {
+        // -- DEBUG
+        const t1 = performance.now()
+        console.log();
+        console.log("Call to build teams took " + (t1 - t0) + " milliseconds.");
+        console.log(`Possible unflitered combinations: ${possibleTeams.length}`);
+        console.log(`Possible flitered combinations: ${filteredPossibleTeams.length}`);
+    }
 
     // -- sort by top predicted DraftKings points
     filteredPossibleTeams.sort((a, b) => {
@@ -913,6 +954,9 @@ const run = async () => {
                 playersToKeepStr.split(",") : [];
             const playersToRemove = playersToRemoveStr ?
                 playersToRemoveStr.split(",") : [];
+
+            console.log(playersToKeepStr, playersToRemoveStr);
+            console.log(playersToKeep, playersToRemove);
 
             if (teamA === teamB) {
                 console.log("Teams need to be different.");
@@ -973,5 +1017,7 @@ const run = async () => {
             console.log('Invalid args. Run `node index.js --help` for valid command list.');
     }
 }
+
+module.exports.VERBOSE = VERBOSE;
 
 run();

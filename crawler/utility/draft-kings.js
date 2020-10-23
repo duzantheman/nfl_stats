@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { VERBOSE } = require("../index");
 
 const getDraftKingsValue = (averageData, numberOfWeeks) => {
 
@@ -61,7 +62,9 @@ const getDraftKingsValue = (averageData, numberOfWeeks) => {
 const getPlayerSalaries = async (teamA, teamB) => {
     // -- retrieve current NFL captains games
     let page = "https://api.draftkings.com/draftgroups/v1/";
-    console.log("Visiting page " + page);
+    if (VERBOSE) {
+        console.log("Visiting page " + page);
+    }
     try {
         const response = await axios.get(page);
         if (response.status !== 200) {
@@ -88,7 +91,9 @@ const getPlayerSalaries = async (teamA, teamB) => {
 
         // -- retrieve player lineup from the game we're looking for
         page = `https://www.draftkings.com/lineup/getavailableplayers?draftGroupId=${game.draftGroupId}`;
-        console.log("Visiting page " + page);
+        if (VERBOSE) {
+            console.log("Visiting page " + page);
+        }
         const playersResponse = await axios.get(page);
         if (playersResponse.status !== 200) {
             console.log("Error occurred while fetching data");
@@ -148,7 +153,9 @@ const getPlayerSalaries = async (teamA, teamB) => {
 const getCurrentGames = async () => {
     // -- retrieve current NFL captains games
     let page = "https://api.draftkings.com/draftgroups/v1/";
-    console.log("Visiting page " + page);
+    if (VERBOSE) {
+        console.log("Visiting page " + page);
+    }
     try {
         const response = await axios.get(page);
         if (response.status !== 200) {

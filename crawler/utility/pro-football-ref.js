@@ -41,6 +41,7 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { VERBOSE } = require("../index");
 
 const TEAM_ABBRV = {
     "PIT": "Pittsburg Steelers",
@@ -88,15 +89,21 @@ const getStats = async (storedYear, storedWeek) => {
     let latestYear = storedYear, latestWeek = storedWeek;
     for (const year of YEARS.filter(year => year >= storedYear)) {
         if (!weeksRemaining) continue;
-        console.log(`Year: ${year}`);
+        if (VERBOSE) {
+            console.log(`Year: ${year}`);
+        }
         latestYear = year;
 
         for (const week of WEEKS.filter(week => week >= storedWeek)) {
             if (!weeksRemaining) continue;
-            console.log(`Week: ${week}`);
+            if (VERBOSE) {
+                console.log(`Week: ${week}`);
+            }
 
             const page = `${PAGE_BASE}/years/${year}/week_${week}.htm`
-            console.log("Visiting page " + page);
+            if (VERBOSE) {
+                console.log("Visiting page " + page);
+            }
 
             try {
                 const response = await axios.get(page);
@@ -155,7 +162,9 @@ const getWeeklyGames = ($) => {
 };
 
 const getGameData = async (gameUrl) => {
-    console.log("Visiting page " + gameUrl);
+    if (VERBOSE) {
+        console.log("Visiting page " + gameUrl);
+    }
 
     try {
         const response = await axios.get(gameUrl);
@@ -169,7 +178,9 @@ const getGameData = async (gameUrl) => {
         const $ = cheerio.load(html);
 
         // -- DEBUG
-        console.log("Page title:  " + $('title').text());
+        if (VERBOSE) {
+            console.log("Page title:  " + $('title').text());
+        }
 
         let homeTeam, awayTeam;
         const gameStats = {

@@ -1,4 +1,5 @@
 const MongoClient = require('mongodb').MongoClient;
+const { VERBOSE } = require("../index");
 
 const user = "admin";
 const pw = "q5xEsVlZsOwwimDs";
@@ -15,7 +16,9 @@ const getLatestStatWeek = async () => {
         const result = await client.db(dbName).collection("latest_stat_week").findOne({});
 
         //  -- DEBUG
-        console.log(result);
+        if (VERBOSE) {
+            console.log(result);
+        }
 
         return result;
 
@@ -54,8 +57,10 @@ const writeLatestStatWeek = async (latestYear, latestWeek) => {
             { upsert: true }    // Options
         );
 
-        console.log(`${result.upsertedCount} new listing(s) created.`);
-        console.log(`${result.modifiedCount} listing(s) modified.`);
+        if (VERBOSE) {
+            console.log(`${result.upsertedCount} new listing(s) created.`);
+            console.log(`${result.modifiedCount} listing(s) modified.`);
+        }
 
         return true;
 
@@ -106,8 +111,10 @@ const writeStats = async (stats) => {
             totalModified += result.modifiedCount;
         }
 
-        console.log(`${totalUpserted} new listing(s) created.`);
-        console.log(`${totalModified} listing(s) modified.`);
+        if (VERBOSE) {
+            console.log(`${totalUpserted} new listing(s) created.`);
+            console.log(`${totalModified} listing(s) modified.`);
+        }
 
     } catch (e) {
         console.error(e);
@@ -162,7 +169,9 @@ const getRelevantGamesData = async (weekNumber, numberOfWeeks, teamA, teamB) => 
                 year = year - 1;
                 week = 17;  // -- should we reset to 17 (end of regular season) or reset in the post season (18-21)???
             }
-            console.log(`Year: ${year}, Week: ${week}`);
+            if (VERBOSE) {
+                console.log(`Year: ${year}, Week: ${week}`);
+            }
 
             const results = await client.db(dbName).collection("weekly_stats")
                 .find({
@@ -360,8 +369,10 @@ const storePlayerSalaries = async (playerSalaries, week, homeTeam, awayTeam) => 
             { upsert: true }    // Options
         );
 
-        console.log(`${result.upsertedCount} new listing(s) created.`);
-        console.log(`${result.modifiedCount} listing(s) modified.`);
+        if (VERBOSE) {
+            console.log(`${result.upsertedCount} new listing(s) created.`);
+            console.log(`${result.modifiedCount} listing(s) modified.`);
+        }
 
     } catch (e) {
         console.error(e);
