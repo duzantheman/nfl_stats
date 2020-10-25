@@ -165,7 +165,11 @@ const getCurrentGames = async () => {
         const teamAbbrvs = [];
 
         // -- filter by NFL captains games
-        const playableGames = response.data.draftGroups.filter(draftGroup => draftGroup.contestType.contestTypeId === 96);
+        const currentDate = new Date();
+        const playableGames = response.data.draftGroups.filter(draftGroup => {
+            const gameDate = new Date(draftGroup.minStartTime);
+            return draftGroup.contestType.contestTypeId === 96 && gameDate.toDateString() === currentDate.toDateString();
+        });
         playableGames.forEach(draftGroup => {
             teamAbbrvs.push(draftGroup.games[0].description.split("@").map(team => convertTeamAbbreviation(team.trim())));
             // const teamAbbrvs = draftGroup.games[0].description.split("@").map(team => convertTeamAbbreviation(team.trim()));

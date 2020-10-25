@@ -230,8 +230,8 @@ const runTeamAlgorithmTest = async () => {
 
     // -- loop through storedDKGames to grab statistics by year/week/teams
     const positions = [];
-    // for (const dkGame of storedDkGames) {
-    for (const dkGame of storedDkGames.slice(1, 2)) {  // -- DEBUG - temp for testing
+    for (const dkGame of storedDkGames) {
+        // for (const dkGame of storedDkGames.slice(6, 7)) {  // -- DEBUG - temp for testing
         console.log(`Game: ${dkGame.year} - Week ${dkGame.week}, ${dkGame.homeTeam} vs ${dkGame.awayTeam}`);
         // -- get actual stats for the particular game
         const gameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
@@ -262,6 +262,7 @@ const runTeamAlgorithmTest = async () => {
             // DKPlayers = await getAverageData(dkGame.week, numberOfWeeks, dkGame.homeTeam, dkGame.awayTeam);
             DKPlayers = await getAverageData(dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
         }
+
         const topPredictedTeams = getTopTeams(DKPlayers, dkGame.playerSalaries);
 
         if (VERBOSE) {
@@ -394,7 +395,6 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
         // -- calculate average
         const avgPoints = values
             .reduce((total, val) => total + val.draftKingsPoints, 0) / (values.length * 1.0);
-        // player["avgDraftKingsPoints"] = avgPoints;
 
         // -- calculate standard deviation
         let varianceTotal = 0;
@@ -414,15 +414,20 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
         let weightedSum = 0;
         const observations = [];
         const weights = [];
+        const CURRENT_YEAR_WEIGHT = 5;
         values.forEach(val => {
             observations.push(val.draftKingsPoints);
             if (val.year === currentYear) {
-                weightedSum += val.draftKingsPoints * 5;
-                totalWeights += 5;
-                weights.push(5);
+                weightedSum += val.draftKingsPoints * CURRENT_YEAR_WEIGHT;
+                totalWeights += CURRENT_YEAR_WEIGHT;
+
+                // -- for weighted std dev
+                weights.push(CURRENT_YEAR_WEIGHT);
             } else {
                 weightedSum += val.draftKingsPoints * 1;
                 totalWeights += 1;
+
+                // -- for weighted std dev
                 weights.push(1);
             }
         });
@@ -450,12 +455,12 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
         });
 
         // -- remove outliers
-        // let newTotal = 0;
-        // let statCount = 0;
-        // player.weeklyStats.filter(stat => !stat.isOutlier).forEach(stat => {
-        //     newTotal += stat.draftKingsPoints;
-        //     statCount++;
-        // });
+        let newTotal = 0;
+        let statCount = 0;
+        player.weeklyStats.filter(stat => !stat.isOutlier).forEach(stat => {
+            newTotal += stat.draftKingsPoints;
+            statCount++;
+        });
         // player["newAvgDraftKingsPoints"] = newTotal / (statCount * 1.0);
         let newTotal2 = 0;
         let statCount2 = 0;
@@ -463,8 +468,9 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
             newTotal2 += stat.draftKingsPoints;
             statCount2++;
         });
-        // player["newAvgDraftKingsPoints2"] = newTotal2 / (statCount2 * 1.0);
-        player["avgDraftKingsPoints"] = newTotal2 / (statCount2 * 1.0);
+        // player["avgDraftKingsPoints"] = avgPoints;   // -- regular average
+        // player["avgDraftKingsPoints"] = newTotal / (statCount * 1.0);    // -- std dev average
+        player["avgDraftKingsPoints"] = newTotal2 / (statCount2 * 1.0); // -- weighted std dev average
 
         // ***** I dont think we have enough data for IQR to make sense here.
         //       Better to just stick with weighted average w/ std dev *****
@@ -812,18 +818,26 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
     });
 
     // -- filter out players we dont have values for, are injured, or are just ignoring
-    const filteredPlayers = playerStats.filter(player => player["salary"] !== -1);
+    let filteredPlayers = playerStats.filter(player => player["salary"] !== -1);
 
     // -- sort by average DK points
     filteredPlayers.sort(function (a, b) {
         return a.draftKingsPoints > b.draftKingsPoints ? -1 : 1;
     });
 
+    // -- DEBUG - for when we run into the javacsript heap out of memory issue
+    if (filteredPlayers.length > 25) {
+        filteredPlayers = filteredPlayers.slice(0, 26);
+    }
+
+    const pointsTitle = isActualData ? "actualPoints" : "predictedPoints";
+
+    // -- DEBUG
+    console.log(`Filtered Players Length: ${filteredPlayers.length}`);
+
 
     // -- performance monitor
     const t0 = performance.now();
-
-    const pointsTitle = isActualData ? "actualPoints" : "predictedPoints";
 
     // -- make a combination of every single possible team
     const possibleTeams = [];
