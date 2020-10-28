@@ -320,7 +320,6 @@ const getGameData = async (gameUrl) => {
             draftKingsPoints += parseInt(player["fgm"] || 0) * 3; // TODO: current dont have a way to dinstinguish distance
 
             // -- TEMPORARY - move into draft-kings file
-            // player["draftKingsPoints"] = draftKingsPoints;
             gameStats["draftKings"].push({
                 name: player["player"],
                 team: player["team"],

@@ -61,6 +61,8 @@ const updateStats = async () => {
 const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers = [], removePlayers = [], useOldWay = false) => {
 
     console.log(`Generating team for week ${weekNumber} - ${teamA} vs ${teamB}...`);
+    console.log(`Including players: ${JSON.stringify(keepPlayers)}`);
+    console.log(`Ignoring players: ${JSON.stringify(removePlayers)}`);
 
     // -- retrieve data and build out weekly averages
     // *** this is where the prediction algorithm is that we need to work on ***
@@ -71,7 +73,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
         DKPlayers = DKPlayers.map(player => {
             return {
                 ...player,
-                ignorePlayer: removePlayers.includes(player.name)
+                ignorePlayer: removePlayers.includes(player.name.trim().toLowerCase())
             };
         });
     } else {
@@ -81,7 +83,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
         DKPlayers = getDraftKingsValue(avgData, numberOfWeeks).map(player => {
             return {
                 ...player,
-                ignorePlayer: removePlayers.includes(player.name)
+                ignorePlayer: removePlayers.includes(player.name.trim().toLowerCase())
             };
         });
     }
@@ -121,7 +123,8 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
     // const topPredictedTeams = getTopTeams(DKPlayers.slice(0, -10), playerSalaries);
 
     console.log();
-    console.log(JSON.stringify(topPredictedTeams.slice(0, 101)));
+    const numberOfTeams = 10;
+    console.log(JSON.stringify(topPredictedTeams.slice(0, numberOfTeams + 1)));
 };
 
 const storeSalaryData = async (week) => {
@@ -150,9 +153,13 @@ const runPlayerAlgorithmTest = async () => {
 
     // -- loop through storedDKGames to grab statistics by year/week/teams
     // for (const dkGame of storedDkGames) {
-    for (const dkGame of [storedDkGames[storedDkGames.length - 1]]) {  // -- DEBUG - temp for testing
+    for (const dkGame of storedDkGames.slice(0, 1)) {  // -- DEBUG - temp for testing
         // -- get actual stats for the particular game
         const actualGameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
+        if (!actualGameData) {
+            console.log(`No game data found, skipping...`);
+            continue;
+        }
 
         // -- get predicted stats for particular game
         const numberOfWeeks = 3;
@@ -230,8 +237,8 @@ const runTeamAlgorithmTest = async () => {
 
     // -- loop through storedDKGames to grab statistics by year/week/teams
     const positions = [];
-    for (const dkGame of storedDkGames) {
-        // for (const dkGame of storedDkGames.slice(6, 7)) {  // -- DEBUG - temp for testing
+    // for (const dkGame of storedDkGames) {
+    for (const dkGame of storedDkGames.slice(0, 1)) {  // -- DEBUG - temp for testing
         console.log(`Game: ${dkGame.year} - Week ${dkGame.week}, ${dkGame.homeTeam} vs ${dkGame.awayTeam}`);
         // -- get actual stats for the particular game
         const gameData = await getStoredGameData(dkGame.year, dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
@@ -263,15 +270,7 @@ const runTeamAlgorithmTest = async () => {
             DKPlayers = await getAverageData(dkGame.week, dkGame.homeTeam, dkGame.awayTeam);
         }
 
-        const topPredictedTeams = getTopTeams(DKPlayers, dkGame.playerSalaries);
-
-        if (VERBOSE) {
-            // -- DEBUG
-            console.log();
-            console.log(`Top actual teams: ${JSON.stringify(topActualTeams.slice(0, 1))}`);
-            console.log();
-            console.log(`Top predicted teams: ${JSON.stringify(topPredictedTeams.filter(team => team.captain.player === topActualTeams[0].captain.player).slice(0, 101))}`);
-        }
+        let topPredictedTeams = getTopTeams(DKPlayers, dkGame.playerSalaries);
 
         // how far down to we have to go to match the team?
         let predictedTeamPosition = -1;
@@ -313,11 +312,75 @@ const runTeamAlgorithmTest = async () => {
 
                 if (playersFound["flex1"] && playersFound["flex2"] && playersFound["flex3"] && playersFound["flex4"] && playersFound["flex5"]) {
                     predictedTeamPosition = i;
+                    // topPredictedTeams[predictedTeamPosition]["differenceFromMatchingTeam"] = topActualTeams
                     break;
                 }
             }
         }
         positions.push([predictedTeamPosition, topPredictedTeams.length]);
+
+        // -- loop through and match teams, then compare actual vs predicted point difference
+        // for (let x = 0; x < topPredictedTeams.length; x++) {
+        for (let x = 0; x < 100; x++) {
+            topTeamPosition = -1;
+            for (let i = 0; i < topActualTeams.length; i++) {
+                if (topTeamPosition > -1) break;
+                if (topActualTeams[i].captain.player === topPredictedTeams[x].captain.player) {
+                    let playersFound = {
+                        "flex1": false,
+                        "flex2": false,
+                        "flex3": false,
+                        "flex4": false,
+                        "flex5": false,
+                    }
+                    for (let j = 1; j <= 5; j++) {
+                        if (!topActualTeams[i][`flex${j}`]) {
+                            console.log(`Missing flex player ${j} in team: ${JSON.stringify(topActualTeams[i])}`);
+                            break;
+                        }
+                        for (let k = 1; k <= 5; k++) {
+                            if (!topPredictedTeams[x][`flex${k}`]) {
+                                console.log(`Missing flex player ${k} in team: ${JSON.stringify(topPredictedTeams[x])}`);
+                                break;
+                            }
+                            if (topActualTeams[i][`flex${j}`].player === topPredictedTeams[x][`flex${k}`].player) {
+                                playersFound[`flex${j}`] = true;
+                                break;
+                            }
+                        }
+                        if (!playersFound[`flex${j}`]) {
+                            // -- player not found at all, jump to next team
+                            break;
+                        }
+                    }
+
+                    if (playersFound["flex1"] && playersFound["flex2"] && playersFound["flex3"] && playersFound["flex4"] && playersFound["flex5"]) {
+                        topTeamPosition = i;
+                        topPredictedTeams[x]["actualPoints"] = topActualTeams[i].totalDraftKingsPoints;
+                        topPredictedTeams[x]["differenceFromMatchingTeam"] = topActualTeams[i].totalDraftKingsPoints - topPredictedTeams[x].totalDraftKingsPoints;
+
+                        // -- DEBUG
+                        console.log("REACHED HERE: " + x);
+                        console.log(JSON.stringify(topPredictedTeams[x]));
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (VERBOSE) {
+            topPredictedTeams.forEach(predictedTeam => {
+                predictedTeam["differenceFromTop"] = topActualTeams[0].totalDraftKingsPoints - predictedTeam.totalDraftKingsPoints;
+            });
+
+            // -- DEBUG
+            console.log();
+            console.log(`Top actual teams: ${JSON.stringify(topActualTeams.slice(0, 1))}`);
+            console.log();
+            // console.log(`Top predicted teams: ${JSON.stringify(topPredictedTeams.filter(team => team.captain.player === topActualTeams[0].captain.player).slice(0, 101))}`);
+            console.log(`Top predicted teams: ${JSON.stringify(topPredictedTeams.slice(0, 101))}`);
+        }
     }
 
     console.log();
@@ -354,7 +417,10 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
                             weeklyStats: [{
                                 week: game.week,
                                 year: game.year,
-                                draftKingsPoints: parseFloat(draftKingsPlayer.draftKingsPoints || 0)
+                                draftKingsPoints: parseFloat(draftKingsPlayer.draftKingsPoints || 0),
+
+                                rushAttempts: parseFloat(draftKingsPlayer.rush_att || 0),
+                                passTargets: parseFloat(draftKingsPlayer.targets || 0)
                             }],
                             totalDraftKingsPoints: parseFloat(draftKingsPlayer.draftKingsPoints || 0)
                         }
@@ -370,8 +436,11 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
                                 averagePlayerData[draftKingsPlayer.name].weeklyStats.push({
                                     week: game.week,
                                     year: game.year,
-                                    draftKingsPoints: parseFloat(draftKingsPlayer.draftKingsPoints || 0)
-                                })
+                                    draftKingsPoints: parseFloat(draftKingsPlayer.draftKingsPoints || 0),
+
+                                    rushAttempts: parseFloat(draftKingsPlayer.rush_att || 0),
+                                    passTargets: parseFloat(draftKingsPlayer.targets || 0)
+                                });
                             }
                         } else {
                             // -- DEBUG
@@ -379,6 +448,15 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
                         }
                     }
                 });
+            game.stats.offense.forEach(offensivePlayer => {
+                if (averagePlayerData[offensivePlayer.player]) {
+                    const weekStats = averagePlayerData[offensivePlayer.player].weeklyStats.find(stat => stat.week === game.week && stat.year === game.year);
+                    if (weekStats) {
+                        weekStats["rushAttempts"] = parseFloat(offensivePlayer.rush_att || 0);
+                        weekStats["passTargets"] = parseFloat(offensivePlayer.targets || 0);
+                    }
+                }
+            });
         });
     });
 
@@ -387,6 +465,10 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
     // filter out players that havent played this year
     const playerList = Object.values(averagePlayerData)
         .filter(player => player.weeklyStats.some(stat => stat.year === currentYear));
+
+    // filter out players that havent played in the last game
+    // // -- DEBUG
+    // console.log(JSON.stringify(playerList));
 
     // -- calculate weekly average
     playerList.forEach(player => {
@@ -488,11 +570,25 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
         //     statCount2++;
         // });
         // player["newAvgDraftKingsPoints2"] = newTotal2 / (statCount2 * 1.0);
+
+        // -- calculate rushing attempts and passing targets
+        const totalRushingAttempts = values.reduce((total, val) => total + val.rushAttempts, 0);
+        const averageRushingAttempts = totalRushingAttempts / (values.length * 1.0);
+        const totalPassingTargets = values.reduce((total, val) => total + val.passTargets, 0);
+        const averagePassingTargets = totalPassingTargets / (values.length * 1.0);
+        // player["totalRushingAttempts"] = totalRushingAttempts;
+        player["averageRushingAttempts"] = averageRushingAttempts;
+        // player["totalPassingTargets"] = totalPassingTargets;
+        player["averagePassingTargets"] = averagePassingTargets;
     });
 
     // -- DEBUG
-    // playerList.sort((a, b) => b.avgDraftKingsPoints - a.avgDraftKingsPoints);
-    // console.log(JSON.stringify(playerList));
+    console.log();
+    playerList.sort((a, b) => b.averageRushingAttempts - a.averageRushingAttempts);
+    console.log(`Rushing: ${JSON.stringify(playerList)}`);
+    console.log();
+    playerList.sort((a, b) => b.averagePassingTargets - a.averagePassingTargets);
+    console.log(`Passing: ${JSON.stringify(playerList)}`);
 
     return playerList.map(player => {
         return {
@@ -737,15 +833,16 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
             const palyerSalNameArray = playerSalName.split(" ");
             const playerSalFirstNameInitial = palyerSalNameArray[0].charAt(0);
             const playerSalLastName = palyerSalNameArray.slice(1).join(" ");
-            return playerSal.team === team &&
-                (
-                    playerSalName === name ||
-                    playerSalName.replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "") === name ||
-                    (
-                        playerSalLastName === lastName && // -- compare last names
-                        playerSalFirstNameInitial === firstNameInitial // -- compare first initial
-                    )
-                );
+            // return playerSal.team === team &&
+            //     (
+            //         playerSalName === name ||
+            //         playerSalName.replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "") === name ||
+            //         (
+            //             playerSalLastName === lastName && // -- compare last names
+            //             playerSalFirstNameInitial === firstNameInitial // -- compare first initial
+            //         )
+            //     );
+            return namesAreEqual(player, playerSal);
         });
 
         if (playerSalary && !playerSalary.injured && !player.ignorePlayer) {
@@ -797,16 +894,17 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
             const firstNameInitial = nameArray[0].charAt(0);
             const lastName = nameArray.slice(1).join(" ");
             const team = player.team;
-            return playerSal.team === team &&
-                (
-                    // -- name comparison
-                    playerSalName === name ||
-                    playerSalName.replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "") === name ||
-                    (
-                        playerSalLastName === lastName && // -- compare last names
-                        playerSalFirstNameInitial === firstNameInitial // -- compare first initial
-                    )
-                );
+            // return playerSal.team === team &&
+            //     (
+            //         // -- name comparison
+            //         playerSalName === name ||
+            //         playerSalName.replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "") === name ||
+            //         (
+            //             playerSalLastName === lastName && // -- compare last names
+            //             playerSalFirstNameInitial === firstNameInitial // -- compare first initial
+            //         )
+            //     );
+            return namesAreEqual(playerSal, player);
         });
 
         if (!playerFound) {
@@ -833,7 +931,7 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
     const pointsTitle = isActualData ? "actualPoints" : "predictedPoints";
 
     // -- DEBUG
-    console.log(`Filtered Players Length: ${filteredPlayers.length}`);
+    // console.log(`Filtered Players Length: ${filteredPlayers.length}`);
 
 
     // -- performance monitor
@@ -951,6 +1049,28 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
     return filteredPossibleTeams;
 }
 
+const namesAreEqual = (playerOne, playerTwo) => {
+    const playerSalName = playerOne.name.trim().toLowerCase().replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "").replace(" iv", "").replace(" v", "");
+    const palyerSalNameArray = playerSalName.split(" ");
+    const playerSalFirstNameInitial = palyerSalNameArray[0].charAt(0);
+    const playerSalLastName = palyerSalNameArray.slice(1).join(" ");
+
+    const name = playerTwo.name.trim().toLowerCase().replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "").replace(" iv", "").replace(" v", "");
+    const nameArray = name.split(" ");
+    const firstNameInitial = nameArray[0].charAt(0);
+    const lastName = nameArray.slice(1).join(" ");
+    return playerOne.team === playerTwo.team &&
+        (
+            // -- name comparison
+            playerSalName === name ||
+            playerSalName === name ||
+            (
+                playerSalLastName === lastName && // -- compare last names
+                playerSalFirstNameInitial === firstNameInitial // -- compare first initial
+            )
+        );
+}
+
 const run = async () => {
     const args = process.argv.slice(2);
     // console.log('args: ', args);
@@ -964,13 +1084,14 @@ const run = async () => {
             console.log("Generating DraftKings teams...");
 
             const [weekNumber, teamA, teamB, playersToKeepStr, playersToRemoveStr] = args.slice(1);
-            const playersToKeep = playersToKeepStr && playersToKeepStr !== " " ?
-                playersToKeepStr.split(",") : [];
-            const playersToRemove = playersToRemoveStr ?
-                playersToRemoveStr.split(",") : [];
+            const playersToKeep = (playersToKeepStr && playersToKeepStr !== " " ?
+                playersToKeepStr.split(",") : []).map(name => name.trim().toLowerCase());
+            const playersToRemove = (playersToRemoveStr ?
+                playersToRemoveStr.split(",") : []).map(name => name.trim().toLowerCase());
 
-            console.log(playersToKeepStr, playersToRemoveStr);
-            console.log(playersToKeep, playersToRemove);
+            // -- DEBUG
+            // console.log(playersToKeepStr, playersToRemoveStr);
+            // console.log(playersToKeep, playersToRemove);
 
             if (teamA === teamB) {
                 console.log("Teams need to be different.");

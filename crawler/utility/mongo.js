@@ -369,10 +369,10 @@ const storePlayerSalaries = async (playerSalaries, week, homeTeam, awayTeam) => 
             { upsert: true }    // Options
         );
 
-        if (VERBOSE) {
-            console.log(`${result.upsertedCount} new listing(s) created.`);
-            console.log(`${result.modifiedCount} listing(s) modified.`);
-        }
+        // if (VERBOSE) {
+        console.log(`${result.upsertedCount} new listing(s) created.`);
+        console.log(`${result.modifiedCount} listing(s) modified.`);
+        // }
 
     } catch (e) {
         console.error(e);

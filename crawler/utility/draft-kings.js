@@ -115,7 +115,7 @@ const getPlayerSalaries = async (teamA, teamB) => {
         playersResponse.data.playerList.forEach(dkPlayer => {
             const teamAbbrv = convertTeamAbbreviation(teamInfo[dkPlayer.tid]);
             // if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D") {
-            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D" && dkPlayer.i !== "Q") {
+            if (dkPlayer.IsDisabledFromDrafting === false && dkPlayer.i !== "IR" && dkPlayer.i !== "O" && dkPlayer.i !== "D" && dkPlayer.i !== "Q" && dkPlayer.i !== "C19") {
                 if (dkPlayer.pn === "DST") {
                     dkPlayersList.push({
                         "name": `${teamAbbrv}-${dkPlayer.pn}`,
@@ -141,6 +141,9 @@ const getPlayerSalaries = async (teamA, teamB) => {
                 });
             }
         });
+
+        // -- DEBUG
+        // console.log(JSON.stringify(dkPlayersList));
 
         return [dkPlayersList, homeTeam, awayTeam];
     }
@@ -169,6 +172,7 @@ const getCurrentGames = async () => {
         const playableGames = response.data.draftGroups.filter(draftGroup => {
             const gameDate = new Date(draftGroup.minStartTime);
             return draftGroup.contestType.contestTypeId === 96 && gameDate.toDateString() === currentDate.toDateString();
+            // return draftGroup.contestType.contestTypeId === 96;  // uncomment if trying to grab games more than 1 day out
         });
         playableGames.forEach(draftGroup => {
             teamAbbrvs.push(draftGroup.games[0].description.split("@").map(team => convertTeamAbbreviation(team.trim())));
