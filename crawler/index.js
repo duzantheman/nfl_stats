@@ -21,7 +21,7 @@ const {
     getCurrentGames
 } = require("./utility/draft-kings");
 
-const VERBOSE = false;
+const VERBOSE = true;
 
 // const testSalaries = require("./game-salaries.json");
 
@@ -66,11 +66,12 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
 
     // -- retrieve data and build out weekly averages
     // *** this is where the prediction algorithm is that we need to work on ***
-    let DKPlayers = [];
+    let playerStats = [];
     if (!useOldWay) {
         // DKPlayers = await getAverageData(weekNumber, numberOfWeeks, teamA, teamB);
-        DKPlayers = await getAverageData(weekNumber, teamA, teamB);
-        DKPlayers = DKPlayers.map(player => {
+        playerStats = await getAverageData(weekNumber, teamA, teamB);
+
+        playerStats = playerStats.map(player => {
             return {
                 ...player,
                 ignorePlayer: removePlayers.includes(player.name.trim().toLowerCase())
@@ -80,7 +81,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
         const avgData = await getAverageDataOld(weekNumber, numberOfWeeks, teamA, teamB);
 
         // -- calculate DraftKings points based on rules and remove designated players
-        DKPlayers = getDraftKingsValue(avgData, numberOfWeeks).map(player => {
+        playerStats = getDraftKingsValue(avgData, numberOfWeeks).map(player => {
             return {
                 ...player,
                 ignorePlayer: removePlayers.includes(player.name.trim().toLowerCase())
@@ -97,6 +98,59 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
     // -- store data in mongo
     await storePlayerSalaries(playerSalaries, weekNumber, homeTeam, awayTeam);
 
+    // -- DEBUG
+    const lineups = {
+        [teamA]: {},
+        [teamB]: {}
+    };
+    playerSalaries.forEach(player => {
+        switch (player.position) {
+            case "QB":
+                if (!lineups[player.team]["QB"]) {
+                    lineups[player.team]["QB"] = player.name;
+                }
+                break;
+            case "RB":
+                if (!lineups[player.team]["RB1"]) {
+                    lineups[player.team]["RB1"] = player.name;
+                } else if (!lineups[player.team]["RB2"]) {
+                    lineups[player.team]["RB2"] = player.name;
+                } else if (!lineups[player.team]["RB3"]) {
+                    lineups[player.team]["RB3"] = player.name;
+                }
+                break;
+            case "WR":
+                if (!lineups[player.team]["WR1"]) {
+                    lineups[player.team]["WR1"] = player.name;
+                } else if (!lineups[player.team]["WR2"]) {
+                    lineups[player.team]["WR2"] = player.name;
+                } else if (!lineups[player.team]["WR3"]) {
+                    lineups[player.team]["WR3"] = player.name;
+                } else if (!lineups[player.team]["WR4"]) {
+                    lineups[player.team]["WR4"] = player.name;
+                }
+                break;
+            case "K":
+                if (!lineups[player.team]["K"]) {
+                    lineups[player.team]["K"] = player.name;
+                }
+                break;
+            case "TE":
+                if (!lineups[player.team]["TE1"]) {
+                    lineups[player.team]["TE1"] = player.name;
+                } else if (!lineups[player.team]["TE2"]) {
+                    lineups[player.team]["TE2"] = player.name;
+                }
+                break;
+            case "DST":
+                if (!lineups[player.team]["DST"]) {
+                    lineups[player.team]["DST"] = player.name;
+                }
+                break;
+        }
+    });
+    console.log(`Lineups: ${JSON.stringify(lineups)}`);
+
 
     // -- TEMP for comparing our predicted value vs DK's FPPG
     // playerSalaries.sort((a, b) => {
@@ -104,7 +158,7 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
     // })
     // console.log();
     // console.log(JSON.stringify(playerSalaries));
-    // const tempList = DKPlayers.sort((a, b) => {
+    // const tempList = playerStats.sort((a, b) => {
     //     return a.draftKingsPoints > b.draftKingsPoints ? -1 : 1;
     // }).map(player => {
     //     return {
@@ -119,12 +173,46 @@ const generateTeam = async (weekNumber, numberOfWeeks, teamA, teamB, keepPlayers
 
     console.log();
     // -- TEMP - to cut down on number of players looping through
-    const topPredictedTeams = getTopTeams(DKPlayers, playerSalaries);
-    // const topPredictedTeams = getTopTeams(DKPlayers.slice(0, -10), playerSalaries);
+    const topPredictedTeams = getTopTeams(playerStats, playerSalaries);
+    // const topPredictedTeams = getTopTeams(playerStats.slice(0, -10), playerSalaries);
+
+    // -- filter only teams that contains players in "keepPlayers" array
+    const filteredTopPredictedTeams = topPredictedTeams.filter(team => {
+
+        // console.log(`Team: ${JSON.stringify(team)}`);
+        // console.log(`KeepPlayers: ${JSON.stringify(keepPlayers)}`);
+
+        let containsAllPlayers = true;
+        for (const keepPlayer of keepPlayers) {
+            let containsPlayer = false;
+            for (const position in team) {
+
+                // console.log(`Player: ${team[position].player}`);
+
+                // if (team[position].player && team[position].player === keepPlayer) {
+                if (team[position].player && namesAreEqual2(team[position].player, keepPlayer)) {
+                    containsPlayer = true;
+                    break;
+                }
+            }
+
+            // console.log(`Contains player: ${containsPlayer}`);
+
+            // -- skip team if a single "keepPlayer" is not found
+            if (!containsPlayer) {
+                return false;
+                // containsAllPlayers = false;
+                // break;
+            }
+        }
+
+        // return containsAllPlayers;
+        return true;
+    });
 
     console.log();
     const numberOfTeams = 10;
-    console.log(JSON.stringify(topPredictedTeams.slice(0, numberOfTeams + 1)));
+    console.log(JSON.stringify(filteredTopPredictedTeams.slice(0, numberOfTeams + 1)));
 };
 
 const storeSalaryData = async (week) => {
@@ -463,16 +551,41 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
     const currentYear = new Date().getFullYear();
 
     // filter out players that havent played this year
-    const playerList = Object.values(averagePlayerData)
+    let currentYearPlayerStats = Object.values(averagePlayerData)
         .filter(player => player.weeklyStats.some(stat => stat.year === currentYear));
 
     // filter out players that havent played in the last game
-    // // -- DEBUG
-    // console.log(JSON.stringify(playerList));
+    let playerStats = [];
+    const filterOutLastGame = true;
+    if (filterOutLastGame) {
+        playerStats = Object.values(currentYearPlayerStats)
+            .filter(player => player.weeklyStats.some(stat => stat.year === currentYear && stat.week === (weekNumber - 1)));
+
+        let difference = currentYearPlayerStats.filter(x => !playerStats.includes(x));
+        difference.sort((a, b) => b.totalDraftKingsPoints - a.totalDraftKingsPoints);
+        console.log(`Players that missed the last game: ${JSON.stringify(difference)}`);
+        console.log("TURN THIS OFF TO INCLUDE ALL PLAYERS");
+    } else {
+        playerStats = currentYearPlayerStats;
+    }
 
     // -- calculate weekly average
-    playerList.forEach(player => {
+    playerStats.forEach(player => {
+        let dkPointsFloor = Number.MAX_SAFE_INTEGER;
+        let dkPointsCeiling = Number.MIN_SAFE_INTEGER;
+
         const values = [...player.weeklyStats];
+
+        values.forEach(val => {
+            if (val.draftKingsPoints > dkPointsCeiling) {
+                dkPointsCeiling = val.draftKingsPoints;
+            }
+            if (val.draftKingsPoints < dkPointsFloor) {
+                dkPointsFloor = val.draftKingsPoints;
+            }
+        });
+        player["dkPointsFloor"] = dkPointsFloor;
+        player["dkPointsCeiling"] = dkPointsCeiling;
 
         // -- calculate average
         const avgPoints = values
@@ -576,27 +689,37 @@ const getAverageData = async (weekNumber, teamA, teamB) => {
         const averageRushingAttempts = totalRushingAttempts / (values.length * 1.0);
         const totalPassingTargets = values.reduce((total, val) => total + val.passTargets, 0);
         const averagePassingTargets = totalPassingTargets / (values.length * 1.0);
+        const totalCombinedAttempts = totalRushingAttempts + totalPassingTargets;
+        const averageCombinedAttempts = totalCombinedAttempts / (values.length * 1.0);
         // player["totalRushingAttempts"] = totalRushingAttempts;
         player["averageRushingAttempts"] = averageRushingAttempts;
         // player["totalPassingTargets"] = totalPassingTargets;
         player["averagePassingTargets"] = averagePassingTargets;
+        player["averageCombinedAttempts"] = averageCombinedAttempts;
     });
 
-    // -- DEBUG
-    console.log();
-    playerList.sort((a, b) => b.averageRushingAttempts - a.averageRushingAttempts);
-    console.log(`Rushing: ${JSON.stringify(playerList)}`);
-    console.log();
-    playerList.sort((a, b) => b.averagePassingTargets - a.averagePassingTargets);
-    console.log(`Passing: ${JSON.stringify(playerList)}`);
+    // -- DEBUG (rushing and pass stats printed)
+    // console.log();
+    // playerStats.sort((a, b) => b.averageRushingAttempts - a.averageRushingAttempts);
+    // console.log(`Rushing: ${JSON.stringify(playerStats)}`);
+    // console.log();
+    // playerStats.sort((a, b) => b.averagePassingTargets - a.averagePassingTargets);
+    // console.log(`Passing: ${JSON.stringify(playerStats)}`);
 
-    return playerList.map(player => {
-        return {
-            name: player.name,
-            team: player.team,
-            draftKingsPoints: player.avgDraftKingsPoints
-        }
+    // const DKPlayers = playerStats.map(player => {
+    //     return {
+    //         name: player.name,
+    //         team: player.team,
+    //         draftKingsPoints: player.avgDraftKingsPoints
+    //     }
+    // });
+
+    playerStats.forEach(player => {
+        player["draftKingsPoints"] = player.avgDraftKingsPoints;
     });
+
+    // return [DKPlayers, playerStats];
+    return playerStats;
 };
 
 // const median = (values) => {
@@ -850,7 +973,7 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
             player["position"] = playerSalary.position;
             player["salary"] = playerSalary.salary;
             player["dollarsPerPoint"] = playerSalary.salary / player["draftKingsPoints"];
-            player["pointsPerDollar"] = player["draftKingsPoints"] / playerSalary.salary;
+            player["pointsPer1000Dollar"] = (player["draftKingsPoints"] / playerSalary.salary) * 1000.0;
         } else if (playerSalary && playerSalary.injured) {
             // -- player injured
             if (VERBOSE) {
@@ -917,6 +1040,17 @@ const getTopTeams = (playerStats, playerSalaries, isActualData = false) => {
 
     // -- filter out players we dont have values for, are injured, or are just ignoring
     let filteredPlayers = playerStats.filter(player => player["salary"] !== -1);
+
+    // -- DEBUG (rushing and pass stats printed)
+    console.log();
+    filteredPlayers.sort((a, b) => b.averageRushingAttempts - a.averageRushingAttempts);
+    console.log(`Rushing: ${JSON.stringify(filteredPlayers)}`);
+    console.log();
+    filteredPlayers.sort((a, b) => b.averagePassingTargets - a.averagePassingTargets);
+    console.log(`Passing: ${JSON.stringify(filteredPlayers)}`);
+    console.log();
+    filteredPlayers.sort((a, b) => b.averageCombinedAttempts - a.averageCombinedAttempts);
+    console.log(`Combined Attempts: ${JSON.stringify(filteredPlayers)}`);
 
     // -- sort by average DK points
     filteredPlayers.sort(function (a, b) {
@@ -1069,6 +1203,27 @@ const namesAreEqual = (playerOne, playerTwo) => {
                 playerSalFirstNameInitial === firstNameInitial // -- compare first initial
             )
         );
+}
+
+const namesAreEqual2 = (playerOne, playerTwo) => {
+    const playerSalName = playerOne.trim().toLowerCase().replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "").replace(" iv", "").replace(" v", "");
+    const palyerSalNameArray = playerSalName.split(" ");
+    const playerSalFirstNameInitial = palyerSalNameArray[0].charAt(0);
+    const playerSalLastName = palyerSalNameArray.slice(1).join(" ");
+
+    const name = playerTwo.trim().toLowerCase().replace(" jr.", "").replace(" sr.", "").replace(" ii", "").replace(" iii", "").replace(" iv", "").replace(" v", "");
+    const nameArray = name.split(" ");
+    const firstNameInitial = nameArray[0].charAt(0);
+    const lastName = nameArray.slice(1).join(" ");
+    return (
+        // -- name comparison
+        playerSalName === name ||
+        playerSalName === name ||
+        (
+            playerSalLastName === lastName && // -- compare last names
+            playerSalFirstNameInitial === firstNameInitial // -- compare first initial
+        )
+    );
 }
 
 const run = async () => {
